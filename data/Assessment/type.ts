@@ -25,6 +25,15 @@ export const ROUTE_OF_FEEDING: readonly RouteOfFeeding[] = [
     "Parenteral",
 ] as const;
 
+/**
+ * The one number that decides "at risk".
+ *
+ * Mirrors the threshold named in the summary contract: 0-2 is low risk and 3+
+ * is at risk. Held in a single constant so the table's filtering and the
+ * at_risk_paitent card can never disagree.
+ */
+export const AT_RISK_THRESHOLD = 3;
+
 /* ------------------------------------------------------------------ *
  * Responses
  * ------------------------------------------------------------------ */
@@ -51,6 +60,66 @@ export interface GetAssessmentSummaryResponse {
     at_risk_paitent: number;
     /** Mean latest NRS, or null when nothing has been scored yet. */
     avg_nrs: number | null;
+}
+
+/* ------------------------------------------------------------------ *
+ * List
+ * ------------------------------------------------------------------ */
+
+/** GET /api/assessments?page=1&limit=10 */
+export interface GetAssessmentsQuery {
+    /** 1-based. Defaults to 1. */
+    page?: number;
+    /** Page size. Defaults to 10, capped at 100. */
+    limit?: number;
+}
+
+/**
+ * One row of the assessment list.
+ *
+ * patient_name and uhid are joined in from Paitent so the table needs no
+ * second request.
+ *
+ * Deliberately absent: patient_id, dietitian_id, weight_kg, height_cm,
+ * daily_protein_target_g, fluid_restriction_ml and the timestamps. The first
+ * two are internal/audit fields and the rest are per-record detail the list has
+ * no use for — all remain available on the create response and on a future
+ * detail endpoint.
+ */
+export interface AssessmentListItem {
+    /** Server-minted, e.g. "NA-000001". The row's handle for later edits. */
+    assessment_id: string;
+    /** Patient's business ID, e.g. "UHID-2026-0001". */
+    uhid: string;
+    /** Joined from Paitent via patient_id. */
+    patient_name: string;
+    /** ISO timestamp of the assessment itself, not of the record's creation. */
+    assessment_date: string;
+    /** Client-supplied body mass index, or null when not recorded. */
+    bmi: number | null;
+    /** NRS-2002 score 0-10, or null when the patient was never scored. */
+    nutritional_risk_score: number | null;
+    daily_caloric_target_kcal: number | null;
+    route_of_feeding: RouteOfFeeding;
+    clinical_notes: string;
+}
+
+/** Page metadata, so the UI can render a pager without a second request. */
+export interface AssessmentPagination {
+    page: number;
+    limit: number;
+    /** Total matching rows across all pages. */
+    total: number;
+    total_pages: number;
+}
+
+/**
+ * All assessments across all patients, newest assessment first. No filters —
+ * the UI narrows the set itself, matching the other list endpoints.
+ */
+export interface GetAssessmentsResponse {
+    data: AssessmentListItem[];
+    pagination: AssessmentPagination;
 }
 
 /* ------------------------------------------------------------------ *

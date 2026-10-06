@@ -1,9 +1,18 @@
 "use client";
 
 import { AssessmentSummaryCards } from "@/components/Assessment/AssessmentSummaryCards";
+import { AssessmentTable } from "@/components/Assessment/AssessmentTable";
 import CreateAssessmentForm from "@/components/Assessment/CreateAssessmentForm";
-import { createAssessmentApi, getAssessmentSummaryApi } from "@/data/Assessment/api";
+import {
+    ASSESSMENT_PAGE_SIZE,
+    EMPTY_ASSESSMENT_PAGINATION,
+    createAssessmentApi,
+    getAssessmentSummaryApi,
+    getAssessmentsApi,
+} from "@/data/Assessment/api";
 import type {
+    AssessmentListItem,
+    AssessmentPagination,
     CreateAssessmentBody,
     CreateAssessmentResponse,
     GetAssessmentSummaryResponse,
@@ -11,12 +20,24 @@ import type {
 import { ClipboardList } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+/** Risk groups the table's chips filter on; "all" means no narrowing. */
+type RiskFilterValue = "all" | "at-risk" | "low" | "unscored";
+
 export default function AssessmentsPage() {
     const [summary, setSummary] =
         useState<GetAssessmentSummaryResponse | null>(null);
 
-    // Starts true so the mount fetch needs no synchronous setState.
+    // The visible page lives in `pagination`, which the table reads from, so
+    // no separate page state is needed here.
+    const [assessments, setAssessments] = useState<AssessmentListItem[]>([]);
+    const [pagination, setPagination] = useState<AssessmentPagination>(
+        EMPTY_ASSESSMENT_PAGINATION
+    );
+    const [riskFilter, setRiskFilter] = useState<RiskFilterValue>("all");
+
+    // All start true so the mount fetches need no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
+    const [isTableLoading, setIsTableLoading] = useState(true);
 
     const fetchSummary = useCallback(async () => {
         try {
@@ -29,31 +50,64 @@ export default function AssessmentsPage() {
         }
     }, []);
 
-    useEffect(() => {
-        // Inlined rather than calling fetchSummary: the set-state-in-effect
-        // rule cannot see that fetchSummary awaits before touching state, and
-        // duplicating three lines here is cheaper than a disable comment.
-        const load = async () => {
-            const data = await getAssessmentSummaryApi().catch((error) => {
-                console.log("Error fetching assessment summary:", error);
-                return null;
+    const fetchTable = useCallback(async (targetPage: number) => {
+        try {
+            setIsTableLoading(true);
+
+            const { data, pagination: meta } = await getAssessmentsApi({
+                page: targetPage,
+                limit: ASSESSMENT_PAGE_SIZE,
             });
 
-            setSummary(data);
+            setAssessments(data);
+            setPagination(meta);
+        } catch (error) {
+            console.log("Error fetching assessments:", error);
+        } finally {
+            setIsTableLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        // Inlined rather than calling the fetchers: the set-state-in-effect
+        // rule cannot see that they await before touching state, and a few
+        // lines here is cheaper than disable comments.
+        const load = async () => {
+            const [summaryData, tableData] = await Promise.all([
+                getAssessmentSummaryApi().catch((error) => {
+                    console.log("Error fetching assessment summary:", error);
+                    return null;
+                }),
+                getAssessmentsApi({
+                    page: 1,
+                    limit: ASSESSMENT_PAGE_SIZE,
+                }).catch((error) => {
+                    console.log("Error fetching assessments:", error);
+                    return {
+                        data: [] as AssessmentListItem[],
+                        pagination: EMPTY_ASSESSMENT_PAGINATION,
+                    };
+                }),
+            ]);
+
+            setSummary(summaryData);
+            setAssessments(tableData.data);
+            setPagination(tableData.pagination);
             setIsSummaryLoading(false);
+            setIsTableLoading(false);
         };
 
         load();
     }, []);
 
-    // A new assessment moves all three card values, so the cards are refreshed
-    // from the handler rather than waiting for a reload.
+    // A new assessment moves every card and adds a row, and the list is
+    // newest-first — so jump back to page 1 to keep the new record visible.
     const handleCreate = async (
         body: CreateAssessmentBody
     ): Promise<CreateAssessmentResponse> => {
         const record = await createAssessmentApi(body);
 
-        await fetchSummary();
+        await Promise.all([fetchTable(1), fetchSummary()]);
 
         return record;
     };
@@ -95,6 +149,15 @@ export default function AssessmentsPage() {
             <div className="mt-4">
                 <CreateAssessmentForm onSubmit={handleCreate} />
             </div>
+
+            <AssessmentTable
+                assessments={assessments}
+                loading={isTableLoading}
+                pagination={pagination}
+                riskFilter={riskFilter}
+                onRiskFilterChange={setRiskFilter}
+                onPageChange={fetchTable}
+            />
         </main>
     );
 }

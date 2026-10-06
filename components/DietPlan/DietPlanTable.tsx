@@ -124,8 +124,8 @@ export function DietPlanTable({
             <div className="overflow-x-auto">
                 <table className="w-full table-fixed border-collapse text-left">
                     <colgroup>
-                        {COL_WIDTHS.map((width) => (
-                            <col key={`${width}-${Math.random()}`} style={{ width }} />
+                        {COL_WIDTHS.map((width, index) => (
+                            <col key={index} style={{ width }} />
                         ))}
                     </colgroup>
 

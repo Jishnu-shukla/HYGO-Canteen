@@ -1,116 +1,162 @@
-import { ALLERGY_SEVERITY } from "@/data/AllergyPref/type";
-import type {
-    AllergyPrefListItem,
-    AllergyPrefPagination,
-    AllergySeverity,
-} from "@/data/AllergyPref/type";
+import { AT_RISK_THRESHOLD } from "@/data/Assessment/type";
+import type { AssessmentListItem, AssessmentPagination } from "@/data/Assessment/type";
 import { TriangleAlert } from "lucide-react";
-import {
-    SEVERITY_BADGE,
-    SEVERITY_LABEL,
-    UNKNOWN_SEVERITY_BADGE,
-} from "./allergyPrefLabels";
 
 const DASH = "—";
 
 const headCell =
-    "whitespace-nowrap px-5 py-2 text-[10px] font-bold uppercase tracking-wide text-amber-700";
-const bodyCell = "px-5 py-2 text-[11px] text-slate-600";
+    "whitespace-nowrap px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-amber-700";
+const bodyCell = "px-2 py-2 text-[11px] text-slate-600";
 
 /**
- * Percentage widths for `table-fixed`. Severity is sized for the longest badge
- * ("Severe (Anaphylaxis)"); the two clinical text columns take the rest and
- * truncate rather than wrap.
+ * Percentage widths for `table-fixed`. Assessment, Patient and Date are
+ * fixed-ish; Notes absorbs the remainder and truncates rather than wrap, since
+ * clinician free text is the only field of unbounded length here.
  */
 const COL_WIDTHS = [
-    "10%", // Preference
-    "24%", // Patient
-    "14%", // Allergy
-    "12%", // Intolerance
-    "14%", // Severity
-    "13%", // Restriction
+    "12%", // Assessment
+    "15%", // Patient
+    "11%", // Date
+    "7%", // BMI
+    "9%", // NRS
+    "9%", // Calories
+    "11%", // Route
+    "25%", // Notes
 ];
 
 const HEADINGS = [
-    "Preference",
+    "Assessment",
     "Patient",
-    "Allergy",
-    "Intolerance",
-    "Severity",
-    "Restriction",
+    "Date",
+    "BMI",
+    "NRS",
+    "Calories",
+    "Route",
+    "Notes",
 ];
 
-export function AllergyPrefTable({
-    prefs,
+/**
+ * Partitions a score into the same three groups the summary card counts: 3+ at
+ * risk, 0-2 low risk, and null for a patient who was never scored. The null
+ * case is its own group rather than being folded in with low risk, because
+ * "not screened" and "screened and fine" are opposite conclusions.
+ */
+function riskGroup(score: number | null) {
+    if (score === null) return "unscored" as const;
+
+    return score >= AT_RISK_THRESHOLD ? ("at-risk" as const) : ("low" as const);
+}
+
+type RiskFilter = "all" | ReturnType<typeof riskGroup>;
+
+const RISK_FILTERS: { value: RiskFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "at-risk", label: `At risk (${AT_RISK_THRESHOLD}+)` },
+    { value: "low", label: "Low risk (0\u20132)" },
+    { value: "unscored", label: "Not scored" },
+];
+
+const RISK_BADGE: Record<Exclude<RiskFilter, "all">, string> = {
+    "at-risk": "bg-red-100 text-red-700",
+    low: "bg-emerald-50 text-emerald-700",
+    unscored: "bg-slate-100 text-slate-500",
+};
+
+/** "2026-10-02T00:00:00.000Z" -> "02 Oct 2026". Falls back to the raw string. */
+function formatDate(value: string) {
+    if (!value) return DASH;
+
+    const parsed = new Date(value);
+
+    if (Number.isNaN(parsed.getTime())) return value;
+
+    return parsed.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
+}
+
+/**
+ * Null and zero are different claims on every one of these fields — no BMI
+ * recorded versus a measured zero — so null always renders as a dash and is
+ * never collapsed by a falsy check.
+ */
+function formatBmi(value: number | null) {
+    return value === null ? DASH : value.toFixed(2);
+}
+
+function formatScore(value: number | null) {
+    return value === null ? DASH : String(value);
+}
+
+function formatCalories(value: number | null) {
+    return value === null ? DASH : value.toLocaleString();
+}
+
+export function AssessmentTable({
+    assessments,
     loading = false,
     pagination,
-    severityFilter = "all",
-    onSeverityFilterChange,
+    riskFilter = "all",
+    onRiskFilterChange,
     onPageChange,
 }: {
-    prefs: AllergyPrefListItem[];
+    assessments: AssessmentListItem[];
     loading?: boolean;
-    pagination?: AllergyPrefPagination;
+    pagination?: AssessmentPagination;
     /** Client-side filter. Scoped to the loaded page — see the notice below. */
-    severityFilter?: AllergySeverity | "all";
-    onSeverityFilterChange?: (value: AllergySeverity | "all") => void;
+    riskFilter?: RiskFilter;
+    onRiskFilterChange?: (value: RiskFilter) => void;
     onPageChange?: (page: number) => void;
 }) {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 0;
     const totalPages = pagination?.total_pages ?? 1;
-    const total = pagination?.total ?? prefs.length;
+    const total = pagination?.total ?? assessments.length;
 
     const isFirstPage = page <= 1;
     const isLastPage = page >= totalPages;
 
     // Row range for the "showing X–Y of Z" line.
     const from = total === 0 ? 0 : (page - 1) * limit + 1;
-    const to = from === 0 ? 0 : from + prefs.length - 1;
+    const to = from === 0 ? 0 : from + assessments.length - 1;
 
     // The server takes no filter parameters, so filtering can only ever see the
     // rows already loaded. `isPartial` drives the warning that admits this.
-    const isFiltered = severityFilter !== "all";
+    const isFiltered = riskFilter !== "all";
     const visibleRows = isFiltered
-        ? prefs.filter((row) => row.severity === severityFilter)
-        : prefs;
+        ? assessments.filter((row) => riskGroup(row.nutritional_risk_score) === riskFilter)
+        : assessments;
 
     // More than one page means the filter is looking at a slice, not the set.
     const isPartial = isFiltered && !loading && totalPages > 1;
 
     return (
-        <section className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="mt-5 px-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
                 <div>
                     <h2 className="text-base font-semibold text-slate-800">
-                        Allergy Preferences
+                        Nutritional Assessments
                     </h2>
 
                     <p className="mt-0.5 text-xs text-slate-500">
-                        Newest record first, across every patient
+                        Newest assessment first, across all patients
                     </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    {/* Severity is the one dimension worth narrowing on: it is
-                        how a clinician decides what needs acting on first. */}
+                    {/* At risk is the one question worth narrowing on, so the
+                        chips split the set the same three ways the summary
+                        card counts it. */}
                     <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
-                        <FilterChip
-                            active={severityFilter === "all"}
-                            onClick={() => onSeverityFilterChange?.("all")}
-                        >
-                            All
-                        </FilterChip>
-
-                        {ALLERGY_SEVERITY.map((option) => (
+                        {RISK_FILTERS.map((option) => (
                             <FilterChip
-                                key={option}
-                                active={severityFilter === option}
-                                onClick={() =>
-                                    onSeverityFilterChange?.(option)
-                                }
+                                key={option.value}
+                                active={riskFilter === option.value}
+                                onClick={() => onRiskFilterChange?.(option.value)}
                             >
-                                {SEVERITY_LABEL[option]}
+                                {option.label}
                             </FilterChip>
                         ))}
                     </div>
@@ -146,16 +192,16 @@ export function AllergyPrefTable({
                                     colSpan={COL_WIDTHS.length}
                                     className="px-4 py-10 text-center text-xs text-slate-400"
                                 >
-                                    Loading preferences...
+                                    Loading assessments...
                                 </td>
                             </tr>
-                        ) : prefs.length === 0 ? (
+                        ) : assessments.length === 0 ? (
                             <tr>
                                 <td
                                     colSpan={COL_WIDTHS.length}
                                     className="px-4 py-10 text-center text-xs text-slate-400"
                                 >
-                                    No allergy preferences yet.
+                                    No assessments yet.
                                 </td>
                             </tr>
                         ) : visibleRows.length === 0 ? (
@@ -166,98 +212,113 @@ export function AllergyPrefTable({
                                     colSpan={COL_WIDTHS.length}
                                     className="px-4 py-10 text-center text-xs text-slate-400"
                                 >
-                                    No records on this page match this
-                                    severity.
+                                    No records on this page match this filter.
                                 </td>
                             </tr>
                         ) : (
-                            visibleRows.map((pref) => {
-                                const severity = pref.severity as AllergySeverity;
-
-                                // Both clinical fields blank is an affirmed
-                                // "no known allergies" stub, not missing data —
-                                // worth saying in words rather than two dashes.
-                                const isAffirmedClear =
-                                    pref.allergies === "" &&
-                                    pref.intolerances === "";
+                            visibleRows.map((row) => {
+                                const group = riskGroup(
+                                    row.nutritional_risk_score
+                                );
 
                                 return (
                                     <tr
-                                        key={pref.allergy_preference_id}
+                                        key={row.assessment_id}
                                         className="border-b border-slate-50 transition last:border-0 hover:bg-slate-50/70"
                                     >
                                         <td
                                             className={`${bodyCell} truncate font-semibold text-slate-700`}
-                                            title={pref.allergy_preference_id}
+                                            title={row.assessment_id}
                                         >
-                                            {pref.allergy_preference_id || DASH}
+                                            {row.assessment_id || DASH}
                                         </td>
 
                                         <td className={bodyCell}>
                                             <p
-                                                title={pref.patient_name}
+                                                title={row.patient_name}
                                                 className="truncate font-semibold text-slate-800"
                                             >
-                                                {pref.patient_name || "Unknown"}
+                                                {row.patient_name || "Unknown"}
                                             </p>
 
                                             <p
-                                                title={pref.uhid}
+                                                title={row.uhid}
                                                 className="truncate text-[10px] text-slate-400"
                                             >
-                                                {pref.uhid || DASH}
+                                                {row.uhid || DASH}
                                             </p>
                                         </td>
 
                                         <td
-                                            className={`${bodyCell} truncate`}
-                                            title={pref.allergies}
+                                            className={`${bodyCell} whitespace-nowrap`}
                                         >
-                                            {pref.allergies ? (
-                                                pref.allergies
-                                            ) : isAffirmedClear ? (
-                                                <span className="italic text-slate-400">
-                                                    None recorded
-                                                </span>
-                                            ) : (
-                                                DASH
-                                            )}
+                                            {formatDate(row.assessment_date)}
                                         </td>
 
                                         <td
                                             className={`${bodyCell} truncate`}
-                                            title={pref.intolerances}
+                                            title={
+                                                row.bmi === null
+                                                    ? "Not recorded"
+                                                    : String(row.bmi)
+                                            }
                                         >
-                                            {pref.intolerances || DASH}
+                                            {formatBmi(row.bmi)}
                                         </td>
 
                                         <td className={bodyCell}>
-                                            {/* The one field that escalates with
-                                                urgency, so the badge carries
-                                                colour rather than just text. */}
+                                            {/* Score is what decides the
+                                                threshold above, so it is the
+                                                cell carrying the colour. */}
                                             <span
-                                                title={pref.severity}
-                                                className={`block truncate rounded-3xl px-1.5 py-0.5 text-center text-[11px] font-bold ${
-                                                    SEVERITY_BADGE[severity] ??
-                                                    UNKNOWN_SEVERITY_BADGE
+                                                title={
+                                                    row.nutritional_risk_score ===
+                                                    null
+                                                        ? "Never scored"
+                                                        : `NRS-2002 ${row.nutritional_risk_score}`
+                                                }
+                                                className={`block truncate rounded-full px-1.5 py-0.5 text-center text-[9px] font-bold ${
+                                                    RISK_BADGE[group]
                                                 }`}
                                             >
-                                                {SEVERITY_LABEL[severity] ??
-                                                    pref.severity}
+                                                {formatScore(
+                                                    row.nutritional_risk_score
+                                                )}
                                             </span>
                                         </td>
 
-                                        {/* Rendered as the raw string: the live
-                                            data contains "Non-Vegetarian",
-                                            which is outside the declared
-                                            union, so a label lookup would
-                                            come back undefined. */}
                                         <td
-                                            className={`${bodyCell} truncate`}
-                                            title={pref.religious_dietary_restrictions}
+                                            className={`${bodyCell} whitespace-nowrap`}
+                                            title={
+                                                row.daily_caloric_target_kcal ===
+                                                null
+                                                    ? "Not recorded"
+                                                    : `${row.daily_caloric_target_kcal} kcal`
+                                            }
                                         >
-                                            {pref.religious_dietary_restrictions ||
-                                                DASH}
+                                            {formatCalories(
+                                                row.daily_caloric_target_kcal
+                                            )}
+                                        </td>
+
+                                        <td className={bodyCell}>
+                                            <span
+                                                title={row.route_of_feeding}
+                                                className="block truncate rounded-full bg-slate-100 px-1.5 py-0.5 text-center text-[9px] font-bold text-slate-700"
+                                            >
+                                                {row.route_of_feeding}
+                                            </span>
+                                        </td>
+
+                                        {/* Free text of unbounded length, so it
+                                            truncates and keeps the full value
+                                            on hover rather than growing the
+                                            row. */}
+                                        <td
+                                            className={`${bodyCell} truncate italic`}
+                                            title={row.clinical_notes}
+                                        >
+                                            {row.clinical_notes || DASH}
                                         </td>
                                     </tr>
                                 );
@@ -270,8 +331,8 @@ export function AllergyPrefTable({
             {isPartial && (
                 <p className="flex items-center gap-1.5 border-t border-amber-100 bg-amber-50 px-4 py-2 text-[10px] font-medium text-amber-700">
                     <TriangleAlert size={12} />
-                    Filtering these {prefs.length} rows on page {page} only —
-                    the server returns all severities together.
+                    Filtering these {assessments.length} rows on page {page} only —
+                    the server returns every record together.
                 </p>
             )}
 
@@ -291,7 +352,7 @@ export function AllergyPrefTable({
                             onClick={() => onPageChange(page - 1)}
                         />
 
-                        <span className="min-w-17.5 text-center text-[11px] font-semibold text-slate-600">
+                        <span className="min-w-[70px] text-center text-[11px] font-semibold text-slate-600">
                             Page {page} of {totalPages}
                         </span>
 

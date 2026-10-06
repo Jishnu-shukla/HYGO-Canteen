@@ -1,4 +1,7 @@
-import type { GetAssessmentSummaryResponse } from "@/data/Assessment/type";
+import {
+    AT_RISK_THRESHOLD,
+    type GetAssessmentSummaryResponse,
+} from "@/data/Assessment/type";
 import { ClipboardList, Gauge, TriangleAlert } from "lucide-react";
 
 type SummaryCardProps = {
@@ -98,7 +101,7 @@ export function AssessmentSummaryCards({
                 label="At-Risk Patients"
                 value={loading ? "-" : String(atRiskPatients)}
                 valueClassName="text-amber-600"
-                helper="Distinct patients whose latest score is 3 or above."
+                helper={`Distinct patients whose latest score is ${AT_RISK_THRESHOLD} or above.`}
             />
 
             <SummaryCard

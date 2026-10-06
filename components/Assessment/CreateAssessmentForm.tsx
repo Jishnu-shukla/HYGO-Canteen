@@ -7,7 +7,7 @@ import type {
     CreateAssessmentResponse,
     RouteOfFeeding,
 } from "@/data/Assessment/type";
-import { ROUTE_OF_FEEDING } from "@/data/Assessment/type";
+import { AT_RISK_THRESHOLD, ROUTE_OF_FEEDING } from "@/data/Assessment/type";
 import type { Patient } from "@/data/DietOrder/type";
 import {
     CheckCircle2,
@@ -55,7 +55,7 @@ const NUMERIC_FIELDS = [
         step: "1",
         min: 0,
         max: 10,
-        hint: "0 to 10. A score of 3 or above counts as at risk.",
+        hint: `0 to 10. A score of ${AT_RISK_THRESHOLD} or above counts as at risk.`,
     },
     {
         key: "daily_caloric_target_kcal",
