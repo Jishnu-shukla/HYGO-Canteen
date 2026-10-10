@@ -1,11 +1,14 @@
 "use client";
 
 import CreateRecipeModal from "@/components/Recipe/CreateRecipeModal";
+import EditRecipeModal from "@/components/Recipe/EditRecipeModal";
 import RecipeFiltersWithSearch from "@/components/Recipe/RecipeFiltersWithSearch";
 import RecipesSection from "@/components/Recipe/RecipesSection";
 import RecipeSummaryCard from "@/components/Recipe/RecipeSummaryCard";
 import { useFoodItemContext } from "@/context/FoodItemContext";
 import { InventoryBatch, InventoryItem } from "@/data/Inventory/type";
+import { deleteRecipeApi } from "@/data/Recipe/api";
+import type { RecipeItem } from "@/data/Recipe/type";
 import {
     ChefHat,
     ChevronDown,
@@ -40,20 +43,33 @@ export default function Recipe() {
     const [inventory] = useState<InventoryItem[]>(items);
 
     const [search, setSearch] = useState("");
-    const [isCreateRecipeOpen, setIsCreateRecipeOpen] = useState(false); 
+    const [isCreateRecipeOpen, setIsCreateRecipeOpen] = useState(false);
+    const [editingRecipe, setEditingRecipe] = useState<RecipeItem | null>(null);
 
-    const handleDeleteRecipe = (recipeId: string) => {
+    // Ids currently being deleted, so each card can spin its own button.
+    const [deletingIds, setDeletingIds] = useState<string[]>([]);
+
+    const handleDeleteRecipe = async (recipeId: string) => {
+        setDeletingIds((current) =>
+            current.includes(recipeId) ? current : [...current, recipeId]
+        );
+
+        const deleted = await deleteRecipeApi(recipeId);
+
+        setDeletingIds((current) =>
+            current.filter((id) => id !== recipeId)
+        );
+
+        // Keep the row on failure — the api helper already logged the reason.
+        if (!deleted) return;
+
         setRecipes((current) =>
             current.filter((recipe) => recipe.recipe_id !== recipeId)
         );
     };
 
     const handleEditRecipe = (recipe: RecipeItem) => {
-        const firstIngredient = recipe.ingredients[0];
-
-        setRecipes((current) =>
-            current.filter((item) => item.recipe_id !== recipe.recipe_id)
-        );
+        setEditingRecipe(recipe);
     };
 
     return (
@@ -121,10 +137,20 @@ export default function Recipe() {
             <RecipeFiltersWithSearch search={search} setSearch={setSearch}/>
 
             {/* Recipe cards */}
-            <RecipesSection search={search} recipes={recipes} handleDeleteRecipe={handleDeleteRecipe} handleEditRecipe={handleEditRecipe} />
+            <RecipesSection search={search} recipes={recipes} handleDeleteRecipe={handleDeleteRecipe} handleEditRecipe={handleEditRecipe} deletingIds={deletingIds} />
 
             {/* Create recipe modal */}
             {isCreateRecipeOpen && <CreateRecipeModal setRecipes={setRecipes} onClose={() => setIsCreateRecipeOpen(false)} />}
+
+            {/* Edit recipe modal */}
+            {editingRecipe && (
+                <EditRecipeModal
+                    key={editingRecipe.recipe_id}
+                    recipe={editingRecipe}
+                    setRecipes={setRecipes}
+                    onClose={() => setEditingRecipe(null)}
+                />
+            )}
 
         </main>
     );

@@ -1,8 +1,16 @@
 "use client";
 
 import { KitchenScheduleSummaryCards } from "@/components/KitchenSchedule/KitchenScheduleSummaryCards";
-import { getKitchenScheduleSummaryApi } from "@/data/KitchenSchedule/api";
-import type { GetKitchenScheduleSummaryResponse } from "@/data/KitchenSchedule/type";
+import { MealSlotBreakdown } from "@/components/KitchenSchedule/MealSlotBreakdown";
+import { KitchenScheduleOrdersTable } from "@/components/KitchenSchedule/KitchenScheduleOrdersTable";
+import {
+    getKitchenScheduleOrdersApi,
+    getKitchenScheduleSummaryApi,
+} from "@/data/KitchenSchedule/api";
+import type {
+    GetKitchenScheduleOrdersResponse,
+    GetKitchenScheduleSummaryResponse,
+} from "@/data/KitchenSchedule/type";
 import { ChefHat } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -13,6 +21,12 @@ export default function KitchenSchedulePage() {
 
     // Starts true so the mount fetch needs no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
+
+    const [orders, setOrders] = useState<GetKitchenScheduleOrdersResponse | null>(
+        null
+    );
+
+    const [isOrdersLoading, setIsOrdersLoading] = useState(true);
 
     useEffect(() => {
         // Inlined rather than calling a helper: the set-state-in-effect rule
@@ -30,6 +44,19 @@ export default function KitchenSchedulePage() {
 
             setSummary(summaryData);
             setIsSummaryLoading(false);
+
+            const ordersData = await getKitchenScheduleOrdersApi().catch(
+                (error) => {
+                    console.log(
+                        "Error fetching kitchen schedule orders:",
+                        error
+                    );
+                    return null;
+                }
+            );
+
+            setOrders(ordersData);
+            setIsOrdersLoading(false);
         };
 
         load();
@@ -66,6 +93,18 @@ export default function KitchenSchedulePage() {
             <KitchenScheduleSummaryCards
                 summary={summary}
                 loading={isSummaryLoading}
+            />
+
+            {/* Per-slot split, a different tile design */}
+            <MealSlotBreakdown
+                mealSlots={summary?.meal_slots}
+                loading={isSummaryLoading}
+            />
+
+            {/* meal_slot × diet_type pivot, each cell per-ward counts */}
+            <KitchenScheduleOrdersTable
+                orders={orders}
+                loading={isOrdersLoading}
             />
         </main>
     );

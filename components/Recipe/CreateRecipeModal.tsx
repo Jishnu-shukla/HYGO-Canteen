@@ -1,6 +1,8 @@
 import { useFoodItemContext } from "@/context/FoodItemContext";
+import { createRecipeApi, getAllRecipesApi } from "@/data/Recipe/api";
+import type { CreateRecipeBody, RecipeItem } from "@/data/Recipe/type";
 import { UNITS } from "@/utils/units";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, LoaderCircle, Plus, X } from "lucide-react";
 import { Dispatch, FormEvent, useState } from "react";
 
 
@@ -42,14 +44,30 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
     });
     const [imageUrl, setImageUrl] = useState("");
 
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+
     const resetForm = () => {
         setRecipeName("");
         setSelectedIngredient("");
         setQuantity("");
         setUnit("g");
+        setPreparationTime("");
+        setNutritionalInfo({
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            fiber: 0,
+            sodium: 0,
+            sugar: 0,
+            cholestrol: 0,
+        });
+        setImageUrl("");
+        setError("");
     };
 
-    const handleCreateRecipe = (event: FormEvent<HTMLFormElement>) => {
+    const handleCreateRecipe = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         const ingredient = items.find(
@@ -58,34 +76,42 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
 
         if (!ingredient || !recipeName.trim() || Number(quantity) <= 0) return;
 
-        const newRecipe: RecipeItem = {
-            recipe_id: `recipe-${Date.now()}`,
+        // recipe_id is minted server-side, and the ingredient goes over as the
+        // plain inventory id — the service unwraps either shape.
+        const body: CreateRecipeBody = {
             recipe_name: recipeName.trim(),
             ingredients: [
                 {
-                    item_id: {
-                        item_id: ingredient.item_id,
-                        item_name: ingredient.item_name
-                    },
+                    item_id: ingredient.item_id,
                     quantity: Number(quantity),
                     unit_of_measure: unit,
                 },
             ],
-            nutritional_info: {
-                calories: 0,
-                protein: 0,
-                carbs: 0,
-                fat: 0,
-                fiber: 0,
-                sodium: 0,
-                sugar: 0,
-                cholestrol: 0
-            },
-            preparation_time: 0,
-            image_url: null,
+            preparation_time: Number(preparationTime) || undefined,
+            nutritional_info: nutritionalInfo,
+            image_url: imageUrl.trim() || null,
         };
 
-        setRecipes((current) => [newRecipe, ...current]);
+        setSaving(true);
+        setError("");
+
+        const created = await createRecipeApi(body);
+
+        if (!created) {
+            setError("Could not create the recipe. Please try again.");
+            setSaving(false);
+            return;
+        }
+
+        // Re-read the list so the new row carries the populated item names the
+        // GET returns; the create response may hand back only the stored refs.
+        const fresh = await getAllRecipesApi();
+
+        setRecipes(
+            Array.isArray(fresh) ? fresh : (current) => [created, ...current]
+        );
+
+        setSaving(false);
         resetForm();
         onClose();
     };
@@ -361,6 +387,12 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                             />
                         </div>
                     </Field>
+                    {error && (
+                        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                            {error}
+                        </p>
+                    )}
+
                     <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
                         <button
                             type="button"
@@ -375,10 +407,23 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
 
                         <button
                             type="submit"
-                            className="flex items-center gap-1.5 rounded-full bg-blue-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+                            disabled={saving}
+                            className="flex items-center gap-1.5 rounded-full bg-blue-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            <Plus size={16} />
-                            Create Recipe
+                            {saving ? (
+                                <>
+                                    <LoaderCircle
+                                        size={16}
+                                        className="animate-spin"
+                                    />
+                                    Creating
+                                </>
+                            ) : (
+                                <>
+                                    <Plus size={16} />
+                                    Create Recipe
+                                </>
+                            )}
                         </button>
                     </div>
                 </form>

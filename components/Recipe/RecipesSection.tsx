@@ -1,17 +1,20 @@
-import { ChefHat, Edit3, PackageSearch, Trash2 } from "lucide-react";
+import { ChefHat, Edit3, LoaderCircle, PackageSearch, Trash2 } from "lucide-react";
 import { useMemo } from "react";
+import type { RecipeItem } from "@/data/Recipe/type";
 
 function IconButton({
     children,
     label,
     danger = false,
     active = false,
+    disabled = false,
     onClick,
 }: {
     children: React.ReactNode;
     label: string;
     danger?: boolean;
     active?: boolean;
+    disabled?: boolean;
     onClick?: () => void;
 }) {
     return (
@@ -19,8 +22,9 @@ function IconButton({
             type="button"
             aria-label={label}
             title={label}
+            disabled={disabled}
             onClick={onClick}
-            className={`rounded-lg p-2 transition ${
+            className={`rounded-lg p-2 transition disabled:cursor-not-allowed disabled:opacity-50 ${
                 active
                     ? "bg-blue-50 text-blue-700"
                     : danger
@@ -33,7 +37,7 @@ function IconButton({
     );
 }
 
-export default function RecipesSection({ search, recipes, handleDeleteRecipe, handleEditRecipe }: { search: string, recipes: RecipeItem[], handleDeleteRecipe: (recipeId: string) => void, handleEditRecipe: (recipe: RecipeItem) => void }) {
+export default function RecipesSection({ search, recipes, handleDeleteRecipe, handleEditRecipe, deletingIds = [] }: { search: string, recipes: RecipeItem[], handleDeleteRecipe: (recipeId: string) => void, handleEditRecipe: (recipe: RecipeItem) => void, deletingIds?: string[] }) {
 
     const filteredRecipes = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -71,7 +75,10 @@ export default function RecipesSection({ search, recipes, handleDeleteRecipe, ha
                 </div>
             ) : (
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredRecipes.map((recipe) => (
+                    {filteredRecipes.map((recipe) => {
+                        const isDeleting = deletingIds.includes(recipe.recipe_id);
+
+                        return (
                         <article
                             key={recipe.recipe_id}
                             className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md"
@@ -91,6 +98,7 @@ export default function RecipesSection({ search, recipes, handleDeleteRecipe, ha
                                 <div className="flex gap-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
                                     <IconButton
                                         label="Edit recipe"
+                                        disabled={isDeleting}
                                         onClick={() => handleEditRecipe(recipe)}
                                     >
                                         <Edit3 size={14} />
@@ -98,9 +106,14 @@ export default function RecipesSection({ search, recipes, handleDeleteRecipe, ha
                                     <IconButton
                                         label="Delete recipe"
                                         danger
+                                        disabled={isDeleting}
                                         onClick={() => handleDeleteRecipe(recipe.recipe_id)}
                                     >
-                                        <Trash2 size={14} />
+                                        {isDeleting ? (
+                                            <LoaderCircle size={14} className="animate-spin" />
+                                        ) : (
+                                            <Trash2 size={14} />
+                                        )}
                                     </IconButton>
                                 </div>
                             </div>
@@ -123,7 +136,8 @@ export default function RecipesSection({ search, recipes, handleDeleteRecipe, ha
                                 ))}
                             </div>
                         </article>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </section>

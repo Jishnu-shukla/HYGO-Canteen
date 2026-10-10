@@ -1,4 +1,5 @@
 import { InventoryItem } from "@/data/Inventory/type"
+import type { RecipeItem } from "@/data/Recipe/type"
 
 export type FoodItemContextType = {
     items: InventoryItem[];

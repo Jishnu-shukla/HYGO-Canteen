@@ -3,6 +3,7 @@
 import { getInventoryItemsApi } from "@/data/Inventory/api";
 import { InventoryItem } from "@/data/Inventory/type";
 import { getAllRecipesApi } from "@/data/Recipe/api";
+import type { RecipeItem } from "@/data/Recipe/type";
 import { FoodItemContextType } from "@/types/FoodItemContextType";
 import { createContext, useContext, useEffect, useState } from "react";
 
