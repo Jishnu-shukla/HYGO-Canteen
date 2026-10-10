@@ -48,7 +48,8 @@ export default function FoodItemProvider({ children }: { children: React.ReactNo
     const FoodItemContextValue: FoodItemContextType = {
         items, 
         recipes,
-        setRecipes
+        setRecipes,
+        refreshItems: getInventoryItems
     };
 
     return (

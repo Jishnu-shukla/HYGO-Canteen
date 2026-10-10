@@ -1,12 +1,9 @@
 "use client";
 
 import {
-    ArrowLeftIcon,
-    Bell,
     ChartSpline,
     ChefHat,
     ClipboardList,
-    Droplets,
     HandPlatter,
     LayoutDashboard,
     ListOrdered,
@@ -16,6 +13,7 @@ import {
     ShieldCheck,
     ShoppingBag,
     Soup,
+    Table2,
     TriangleAlert,
     Truck,
     Utensils,
@@ -32,8 +30,6 @@ export const ICON_MAP: Record<string, LucideIcon> = {
     "Nutritional Assessments": NotepadText,
     "Diet Plan Builder": Wrench,
     "Allergen & Preference": TriangleAlert,
-    "Enteral / Parenteral": Droplets,
-    "Diet Re-evaluation": Bell,
     "Diet Orders": ShoppingBag,
     "Kitchen Schedule": ChefHat,
     "Meal Dispatch": Utensils,
@@ -42,6 +38,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
     "Inventory": Package2,
     "FSSAI Checklist": ShieldCheck,
     "Cafeteria": HandPlatter,
+    "Tables": Table2,
     // Screens added on top of the reference list
     "Recipes": Soup,
     "Menu": ClipboardList,
@@ -89,45 +86,54 @@ export default function Sidebar({
 
     const getListItemClass = (itemPath: string) => {
         const baseStyle =
-            "flex items-center gap-2 p-3 cursor-pointer transition-colors duration-150 w-full text-left text-sm";
-        const activeStyle =
-            "bg-blue-500 text-white rounded-2xl font-medium border-r-4 border-gray-700";
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-colors duration-150";
+        const activeStyle = "bg-orange-100/80 font-semibold text-orange-900";
         const inactiveStyle =
-            "text-orange-900 hover:bg-orange-100 hover:text-gray-900";
+            "text-slate-600 hover:bg-orange-50 hover:text-orange-900";
 
-        return `${baseStyle} ${currentPath === itemPath ? activeStyle : inactiveStyle}`;
+        return `${baseStyle} ${
+            currentPath === itemPath ? activeStyle : inactiveStyle
+        }`;
     };
 
     return (
         <div
-            className={`${isOpen ? "flex" : "hidden"} h-screen sticky top-0 no-scrollbar w-64 shrink-0 flex-col overflow-auto border-r border-gray-200 bg-white md:flex`}
+            className={`${isOpen ? "flex" : "hidden"} h-screen sticky top-0 no-scrollbar w-64 shrink-0 flex-col overflow-auto border-r border-slate-200 bg-white md:flex`}
         >
-            <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-gray-300 bg-white p-4">
-                <button
-                    type="button"
-                    onClick={() => window.history.back()}
-                    aria-label="Go back"
-                    className="cursor-pointer text-gray-600 transition hover:text-gray-900"
-                >
-                    <ArrowLeftIcon size={18} />
-                </button>
+            {/* Brand header — the launcher back-arrow row is gone; this now
+                matches the orange brand carried by the top app bar. */}
+            <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-orange-100 bg-white px-4 py-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-700">
+                    <Utensils size={18} />
+                </div>
 
-                <span className="font-medium text-orange-800">Launcher</span>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-orange-900">
+                        CANTEEN MANAGEMENT
+                    </p>
+                    <p className="truncate text-[10px] text-slate-400">
+                        Kitchen &amp; Nutrition Hub
+                    </p>
+                </div>
 
                 <button
                     type="button"
                     onClick={handleClose}
                     aria-label="Close navigation"
-                    className="ml-auto cursor-pointer text-gray-500 transition hover:text-gray-900 md:hidden"
+                    className="ml-auto cursor-pointer text-slate-400 transition hover:text-slate-700 md:hidden"
                 >
                     <X size={18} />
                 </button>
             </header>
 
             <nav className="flex-1 pb-6">
-                {SIDEBAR_ROUTES.map((section) => (
+                {SIDEBAR_ROUTES.map((section, sectionIndex) => (
                     <section key={section.section}>
-                        <h3 className="p-4 text-xs font-semibold tracking-wider text-orange-400">
+                        <h3
+                            className={`px-4 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 ${
+                                sectionIndex === 0 ? "pt-2" : "pt-5"
+                            }`}
+                        >
                             {section.section}
                         </h3>
 
@@ -147,14 +153,25 @@ export default function Sidebar({
                                             aria-current={
                                                 isActive ? "page" : undefined
                                             }
-                                            className={getListItemClass(item.path)}
+                                            className={getListItemClass(
+                                                item.path
+                                            )}
                                             onClick={() => {
                                                 onNavigate?.(item.path);
                                                 handleClose();
                                             }}
                                         >
-                                            <IconComponent size={18} />
-                                            <span>{item.name}</span>
+                                            <IconComponent
+                                                size={17}
+                                                className={
+                                                    isActive
+                                                        ? "text-orange-600"
+                                                        : "text-slate-400"
+                                                }
+                                            />
+                                            <span className="truncate">
+                                                {item.name}
+                                            </span>
                                         </Link>
                                     </li>
                                 );

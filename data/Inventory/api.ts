@@ -40,7 +40,7 @@ export async function createInventoryItemApi(inventoryItem: addInventoryItem) {
 }
 export async function createInventoryBatchApi(item_id: string, batchItem: addBatchItem) {
     try {
-        const data = await fetch(`https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory/${item_id}`, {
+        const data = await fetch(`https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory/${item_id}/batch`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

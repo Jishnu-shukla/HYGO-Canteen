@@ -56,16 +56,6 @@ export const SIDEBAR_ROUTES: SidebarSection[] = [
                 path: "/allergens",
                 description: "Maintain allergen restrictions and patient food preferences.",
             },
-            {
-                name: "Enteral / Parenteral",
-                path: "/enteral-parenteral",
-                description: "Track tube feeding and parenteral nutrition support.",
-            },
-            {
-                name: "Diet Re-evaluation",
-                path: "/re-evaluation",
-                description: "Schedule and record periodic diet re-evaluations.",
-            },
         ],
     },
     {
@@ -145,6 +135,11 @@ export const SIDEBAR_ROUTES: SidebarSection[] = [
                 name: "Cafeteria",
                 path: "/cafeteria",
                 description: "Manage cafeteria menu, pricing and sales.",
+            },
+            {
+                name: "Tables",
+                path: "/tables",
+                description: "Take table orders for seated customers.",
             },
         ],
     },

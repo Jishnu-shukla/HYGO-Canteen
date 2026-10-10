@@ -125,7 +125,7 @@ export default function Dashboard() {
 
                 <DashboardCard
                     title="FSSAI ISSUES"
-                    value={fssaiScore < 90 ? 1 : 0}
+                    value={fssaiScore}
                     valueClassName="text-amber-600"
                     subtitle={`${fssaiScore}% premises score`}
                     subtitleClassName="text-red-500"

@@ -354,7 +354,6 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                     <Field label="Image URL">
                         <div className="relative">
                             <input
-                                required
                                 value={imageUrl}
                                 onChange={(event) => setImageUrl(event.target.value)}
                                 placeholder="e.g. https://example.com/image.jpg"

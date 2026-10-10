@@ -77,6 +77,23 @@ export interface GeneralMenu {
 /** Either collection, narrowed by the requested `type`. */
 export type MenuList = PatientMenu[] | GeneralMenu[];
 
+/**
+ * Flat distinct-item picker for the diet_plan screen (the disallowed-items
+ * multi-select), returned by GET /api/menu?type=patient&expanded=true.
+ *
+ * One row per distinct MasterMenuItem *per meal slot* — meal_slot lives on
+ * PatientMenuItem, not MasterMenuItem, so an item served at both Lunch and
+ * Dinner is returned as two rows. Within a slot an item appearing on twenty
+ * menus still collapses to one row.
+ *
+ * master_item_id / recipe_id / recipe_name / price are the same DTO as
+ * PatientMenu["items"], so the screen renders those fields identically.
+ */
+export interface PatientMenuPickItem extends MenuMasterItem {
+    /** Which meal this item appears on, per the menus referencing it. */
+    meal_slot: MealSlot;
+}
+
 /** GET /api/menu?type=...&date=...&diet_type=...&meal_slot=...&day_of_week=...&is_available=... */
 export interface GetMenusQuery {
     /** Required — picks the backing collection. */
@@ -88,6 +105,11 @@ export interface GetMenusQuery {
     meal_slot?: MealSlot;
     /** General menus only. */
     is_available?: boolean;
+    /**
+     * Patient menus only. Collapses the day/diet menus into one row per
+     * distinct item per meal slot — the shape PatientMenuPickItem describes.
+     */
+    expanded?: boolean;
     page?: number;
     limit?: number;
 }

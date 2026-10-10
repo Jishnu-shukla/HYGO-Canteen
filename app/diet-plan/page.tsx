@@ -3,7 +3,6 @@
 import CreateDietPlanForm from "@/components/DietPlan/CreateDietPlanForm";
 import { DietPlanSummaryCards } from "@/components/DietPlan/DietPlanSummaryCards";
 import { DietPlanTable } from "@/components/DietPlan/DietPlanTable";
-import MenuProvider, { useMenuContext } from "@/context/MenuContext";
 import {
     DIET_PLAN_PAGE_SIZE,
     EMPTY_DIET_PLAN_PAGINATION,
@@ -11,6 +10,8 @@ import {
     getDietPlansApi,
     getDietPlanSummaryApi,
 } from "@/data/DietPlan/api";
+import { getPatientMenuPickItemsApi } from "@/data/Menu/api";
+import type { PatientMenuPickItem } from "@/data/Menu/type";
 import type {
     CreateDietPlanBody,
     CreateDietPlanResponse,
@@ -22,8 +23,10 @@ import { Wrench } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 function DietPlanContent() {
-    // Supplies the master dishes offered in the form's withhold roster.
-    const { items: menuItems, loading: menuLoading } = useMenuContext();
+    // The patient menu, one row per item per meal slot: the withhold roster
+    // shows what the patient could actually be served, not the master list.
+    const [menuItems, setMenuItems] = useState<PatientMenuPickItem[]>([]);
+    const [menuLoading, setMenuLoading] = useState(true);
 
     const [summary, setSummary] =
         useState<GetDietPlanSummaryResponse | null>(null);
@@ -81,7 +84,7 @@ function DietPlanContent() {
         // Inlined so setState sits behind an await inside the effect rather
         // than in a helper the effect calls.
         const load = async () => {
-            const [summaryData, tableData] = await Promise.all([
+            const [summaryData, tableData, pickItems] = await Promise.all([
                 getDietPlanSummaryApi().catch((error) => {
                     console.log("Error fetching diet plan summary:", error);
                     return null;
@@ -96,13 +99,19 @@ function DietPlanContent() {
                         pagination: EMPTY_DIET_PLAN_PAGINATION,
                     };
                 }),
+                getPatientMenuPickItemsApi().catch((error) => {
+                    console.log("Error fetching patient menu items:", error);
+                    return undefined;
+                }),
             ]);
 
             setSummary(summaryData);
             setPlans(tableData.data);
             setPagination(tableData.pagination);
+            setMenuItems(pickItems ?? []);
             setIsSummaryLoading(false);
             setIsTableLoading(false);
+            setMenuLoading(false);
         };
 
         load();
@@ -176,10 +185,4 @@ function DietPlanContent() {
     );
 }
 
-export default function DietPlanPage() {
-    return (
-        <MenuProvider>
-            <DietPlanContent />
-        </MenuProvider>
-    );
-}
+export default DietPlanContent;

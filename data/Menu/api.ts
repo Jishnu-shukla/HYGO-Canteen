@@ -1,4 +1,4 @@
-import { CreateMenuBody, GetMenusQuery } from "./type";
+import { CreateMenuBody, GetMenusQuery, PatientMenuPickItem } from "./type";
 
 const BASE_URL = "https://4jzhg556-5000.inc1.devtunnels.ms/api/menu";
 
@@ -17,6 +17,9 @@ function buildQueryString(query: GetMenusQuery): string {
     if (query.is_available !== undefined) {
         params.set("is_available", String(query.is_available));
     }
+    if (query.expanded !== undefined) {
+        params.set("expanded", String(query.expanded));
+    }
     if (query.page) params.set("page", String(query.page));
     if (query.limit) params.set("limit", String(query.limit));
 
@@ -34,6 +37,19 @@ export async function getMenusApi(query: GetMenusQuery) {
     } catch (error) {
         console.log(error);
     }
+}
+
+/**
+ * The diet_plan disallowed-items picker: one row per distinct patient menu
+ * item per meal slot. Returns undefined on failure so callers can keep their
+ * existing list rather than blanking it.
+ */
+export async function getPatientMenuPickItemsApi(): Promise<
+    PatientMenuPickItem[] | undefined
+> {
+    const data = await getMenusApi({ type: "patient", expanded: true });
+
+    return Array.isArray(data) ? (data as PatientMenuPickItem[]) : undefined;
 }
 
 export async function createMenuApi(body: CreateMenuBody) {

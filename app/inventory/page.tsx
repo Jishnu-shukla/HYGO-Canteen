@@ -1,15 +1,16 @@
 "use client"
 
-import AddBatchModal from "@/components/Inventory/AddBatchModal";
+import AddBatchModal, { type AddBatchFormData } from "@/components/Inventory/AddBatchModal";
 import AddItemModal from "@/components/Inventory/AddItemModal";
 import InventoryFilters from "@/components/Inventory/InventoryFilters";
 import { InventorySummaryCard } from "@/components/Inventory/InventorySummaryCard";
 import InventoryTable from "@/components/Inventory/InventoryTable";
+import SelectInventoryItemModal from "@/components/Inventory/SelectInventoryItemModal";
 import { useFoodItemContext } from "@/context/FoodItemContext";
-import { getInventoryItemsApi, getInventorySummaryApi } from "@/data/Inventory/api";
-import { categories, inventoryItems } from "@/data/Inventory/dummyData";
+import { createInventoryBatchApi, getInventorySummaryApi } from "@/data/Inventory/api";
+import { categories } from "@/data/Inventory/dummyData";
 import { IinventorySummary, InventoryItem } from "@/data/Inventory/type";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Inventory() {
 
@@ -18,12 +19,12 @@ export default function Inventory() {
     const [selectedCategory, setSelectedCategory] = useState(categories[0].name);
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
     const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
-    const [selectedItem, setSelectedItem] = useState({
-        item_name: "wheat",
-        unit_of_measure: "kg"
-    })
+    const [isSelectItemModalOpen, setIsSelectItemModalOpen] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<
+        Pick<InventoryItem, "item_id" | "item_name" | "unit_of_measure"> | null
+    >(null);
     const [inventorySummary, setInventorySummary] = useState<IinventorySummary | null>(null);
-    const { items } = useFoodItemContext()
+    const { items, refreshItems } = useFoodItemContext()
 
     async function getInventorySummary() {
         try {
@@ -38,8 +39,43 @@ export default function Inventory() {
         }
     }
 
-    function handleAddBatch() {
+    // Step 1 of the add-batch flow: pick an existing inventory item.
+    function openAddBatchPicker() {
+        setIsSelectItemModalOpen(true);
+    }
 
+    // Step 2: the item is chosen, hand it to the batch form.
+    function handleSelectItem(
+        item: Pick<InventoryItem, "item_id" | "item_name" | "unit_of_measure">
+    ) {
+        setSelectedItem(item);
+        setIsSelectItemModalOpen(false);
+        setIsAddBatchModalOpen(true);
+    }
+
+    // Submits the batch for the selected item, then re-syncs the inventory
+    // list from the API so the fresh batch shows up in the table.
+    async function handleAddBatch(data: AddBatchFormData) {
+        if (!selectedItem?.item_id) return;
+
+        try {
+            setLoading(true);
+            console.log("Submitting form data with selectedItem id is:", selectedItem);
+            await createInventoryBatchApi(selectedItem.item_id, {
+                batch_number: data.batch_number,
+                received_date: data.received_date,
+                expiry_date: data.expiry_date,
+                initial_quantity: Number(data.initial_quantity),
+                current_quantity: Number(data.current_quantity),
+                unit_cost: Number(data.unit_cost),
+            });
+            setIsAddBatchModalOpen(false);
+            refreshItems();
+        } catch (error) {
+            console.log(error);
+        } finally {
+            setLoading(false);
+        }
     }
     
     useEffect(() => {
@@ -77,6 +113,7 @@ export default function Inventory() {
                     </button>
                     <button
                         type="button"
+                        onClick={openAddBatchPicker}
                         className="rounded-full bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 cursor-pointer"
                     >
                         Add Batch
@@ -103,7 +140,27 @@ export default function Inventory() {
             <AddItemModal
                 isOpen={isAddItemModalOpen}
                 onClose={() => setIsAddItemModalOpen(false)}
-                onNext={() => setIsAddBatchModalOpen(true)}
+                onNext={(data) => {
+                    // Carry the freshly defined item into the batch step so the
+                    // form is pre-framed for it (item_id is still empty here —
+                    // the server assigns it, so batch submission waits).
+                    setSelectedItem({
+                        item_id: "",
+                        item_name: data.item_name,
+                        unit_of_measure: data.unit_of_measure,
+                    });
+                    setIsAddBatchModalOpen(true);
+                }}
+            />
+
+            {/* A fresh key each time it opens remounts the picker, which
+                resets its internal search bar without an effect. */}
+            <SelectInventoryItemModal
+                key={String(isSelectItemModalOpen)}
+                isOpen={isSelectItemModalOpen}
+                onClose={() => setIsSelectItemModalOpen(false)}
+                onSelect={handleSelectItem}
+                items={items}
             />
 
             <AddBatchModal

@@ -12,7 +12,7 @@ import {
     CONSISTENCY_LIQUID,
     TEXTURE_MODIFICATION,
 } from "@/data/DietPlan/type";
-import type { MasterMenuItem } from "@/data/MasterMenu/type";
+import type { PatientMenuPickItem } from "@/data/Menu/type";
 import type { DietType } from "@/data/Menu/type";
 import { DIET_TYPE } from "@/data/Menu/type";
 import {
@@ -79,8 +79,8 @@ export default function CreateDietPlanForm({
     menuLoading = false,
     onSubmit,
 }: {
-    /** Master menu dishes offered in the withhold picker. */
-    menuItems: MasterMenuItem[];
+    /** Patient menu dishes offered in the withhold picker. */
+    menuItems: PatientMenuPickItem[];
     menuLoading?: boolean;
     /** Resolves with the created plan so the form can confirm its id. */
     onSubmit: (payload: CreateDietPlanBody) => Promise<CreateDietPlanResponse>;

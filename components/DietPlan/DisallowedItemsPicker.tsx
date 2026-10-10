@@ -1,6 +1,6 @@
 "use client";
 
-import type { MasterMenuItem } from "@/data/MasterMenu/type";
+import type { PatientMenuPickItem } from "@/data/Menu/type";
 import { Ban, LoaderCircle, RotateCcw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -16,6 +16,9 @@ const inputClass =
  * `disallowed_items_id` — and every dish renders in place, struck through when
  * withheld, so the dietitian edits the roster they can see instead of tracking
  * a second hidden set.
+ *
+ * Rows come from the patient menu, one per item per meal slot, so the roster
+ * shows what the patient can actually be served and each row names its slot.
  */
 export default function DisallowedItemsPicker({
     items,
@@ -24,7 +27,7 @@ export default function DisallowedItemsPicker({
     onChange,
     disabled = false,
 }: {
-    items: MasterMenuItem[];
+    items: PatientMenuPickItem[];
     loading?: boolean;
     /** master_item_id values withheld from this patient. */
     selected: string[];
@@ -47,7 +50,8 @@ export default function DisallowedItemsPicker({
         return items.filter(
             (item) =>
                 item.recipe_name?.toLowerCase().includes(needle) ||
-                item.master_item_id?.toLowerCase().includes(needle)
+                item.master_item_id?.toLowerCase().includes(needle) ||
+                item.meal_slot?.toLowerCase().includes(needle)
         );
     }, [items, query]);
 
@@ -59,13 +63,21 @@ export default function DisallowedItemsPicker({
         );
     };
 
+    // Selection is by master_item_id, and one dish can appear in several meal
+    // slots, so the totals count distinct dishes while the roster keeps each
+    // slot on its own row.
+    const distinctCount = useMemo(
+        () => new Set(items.map((item) => item.master_item_id)).size,
+        [items]
+    );
+
     const withheldCount = selected.length;
 
     return (
         <div>
             <div className="mb-1.5 flex items-baseline justify-between gap-3">
                 <span className="text-xs font-semibold text-slate-600">
-                    Menu items
+                    Patient menu items
                 </span>
 
                 <span
@@ -74,8 +86,8 @@ export default function DisallowedItemsPicker({
                     }`}
                 >
                     {withheldCount === 0
-                        ? `All ${items.length} allowed`
-                        : `${withheldCount} of ${items.length} withheld`}
+                        ? `All ${distinctCount} allowed`
+                        : `${withheldCount} of ${distinctCount} withheld`}
                 </span>
             </div>
 
@@ -143,7 +155,9 @@ export default function DisallowedItemsPicker({
                                 );
 
                                 return (
-                                    <li key={item.master_item_id}>
+                                    <li
+                                        key={`${item.master_item_id}-${item.meal_slot}`}
+                                    >
                                         <button
                                             type="button"
                                             disabled={disabled}
@@ -153,8 +167,8 @@ export default function DisallowedItemsPicker({
                                             aria-pressed={isWithheld}
                                             title={
                                                 isWithheld
-                                                    ? `Allow ${item.recipe_name} again`
-                                                    : `Withhold ${item.recipe_name}`
+                                                    ? `Allow ${item.recipe_name} (${item.meal_slot}) again`
+                                                    : `Withhold ${item.recipe_name} (${item.meal_slot})`
                                             }
                                             className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition disabled:opacity-60 ${
                                                 isWithheld
@@ -184,7 +198,10 @@ export default function DisallowedItemsPicker({
                                                             : "text-slate-800"
                                                     }`}
                                                 >
-                                                    {item.recipe_name}
+                                                    {item.recipe_name}{" "}
+                                                    <span className="font-normal text-slate-400">
+                                                        ({item.meal_slot})
+                                                    </span>
                                                 </span>
 
                                                 <span className="block truncate text-[10px] text-slate-400">
