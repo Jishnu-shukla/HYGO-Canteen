@@ -1,6 +1,6 @@
 "use client";
 
-import { InventoryTableItem } from "@/data/Inventory/type";
+import { InventoryBatch, InventoryTableItem } from "@/data/Inventory/type";
 import { ChevronsRight } from "lucide-react";
 import { useState } from "react";
 
@@ -10,6 +10,10 @@ export interface InventoryTableProps {
     onEdit?: (item: InventoryTableItem) => void;
     onDelete?: (item: InventoryTableItem) => void;
     onPOTrigger?: (item: InventoryTableItem) => void;
+    onEditBatch?: (item: InventoryTableItem, batch: InventoryBatch) => void;
+    onDeleteBatch?: (item: InventoryTableItem, batch: InventoryBatch) => void;
+    /** item_id whose pre-order toggle is in flight, so only that button disables. */
+    poBusyId?: string | null;
 }
 
 const formatQuantity = (quantity: number, unit: string) => {
@@ -32,8 +36,13 @@ const getNearestExpiry = (item: InventoryTableItem) => {
     const today = new Date();
 
     const upcoming = item.batches
-        .map((batch) => new Date(batch.expiry))
-        .filter((date) => !Number.isNaN(date.getTime()) && date >= today)
+        .map((batch) => (batch.expiry_date ? new Date(batch.expiry_date) : null))
+        .filter(
+            (date): date is Date =>
+                date !== null &&
+                !Number.isNaN(date.getTime()) &&
+                date >= today
+        )
         .sort((a, b) => a.getTime() - b.getTime());
 
     return upcoming[0] ?? null;
@@ -84,6 +93,9 @@ export default function InventoryTable({
     onEdit,
     onDelete,
     onPOTrigger,
+    onEditBatch,
+    onDeleteBatch,
+    poBusyId,
 }: InventoryTableProps) {
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
     return (
@@ -259,10 +271,24 @@ export default function InventoryTable({
 
                                                 <button
                                                     type="button"
-                                                    title={`Trigger PO for ${item.item_name}`}
-                                                    aria-label={`Trigger purchase order for ${item.item_name}`}
+                                                    title={
+                                                        item.is_preordered
+                                                            ? `Cancel pre-order for ${item.item_name}`
+                                                            : `Trigger pre-order for ${item.item_name}`
+                                                    }
+                                                    aria-label={
+                                                        item.is_preordered
+                                                            ? `Cancel purchase order for ${item.item_name}`
+                                                            : `Trigger purchase order for ${item.item_name}`
+                                                    }
+                                                    aria-pressed={item.is_preordered}
+                                                    disabled={poBusyId === item.item_id}
                                                     onClick={() => onPOTrigger?.(item)}
-                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-amber-100 bg-white text-amber-600 transition hover:border-amber-200 hover:bg-amber-50"
+                                                    className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                                                        item.is_preordered
+                                                            ? "border-amber-500 bg-amber-500 text-white hover:bg-amber-600"
+                                                            : "border-amber-100 bg-white text-amber-600 hover:border-amber-200 hover:bg-amber-50"
+                                                    }`}
                                                 >
                                                     <POIcon />
                                                 </button>
@@ -321,8 +347,8 @@ export default function InventoryTable({
                                                                                 : "-"}
                                                                         </td>
                                                                         <td className="px-3 py-2 text-xs text-slate-600">
-                                                                            {batch.expiry
-                                                                                ? formatDate(new Date(batch.expiry))
+                                                                            {batch.expiry_date
+                                                                                ? formatDate(new Date(batch.expiry_date))
                                                                                 : "-"}
                                                                         </td>
                                                                         <td className="px-3 py-2 text-xs text-slate-600">
@@ -344,13 +370,16 @@ export default function InventoryTable({
                                                                             })}
                                                                         </td>
                                                                         <td className="px-3 py-2">
-                                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                            <div
+                                                                                className="flex items-center justify-center gap-1.5"
+                                                                                onClick={(event) => event.stopPropagation()}
+                                                                            >
                                                                                 <button
                                                                                     type="button"
                                                                                     title={`Edit batch ${batch.batch_number}`}
                                                                                     aria-label={`Edit batch ${batch.batch_number}`}
                                                                                     onClick={() =>
-                                                                                        console.log("Edit batch", item.item_id, batch)
+                                                                                        onEditBatch?.(item, batch)
                                                                                     }
                                                                                     className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-blue-100 bg-white text-blue-600 transition hover:border-blue-200 hover:bg-blue-50"
                                                                                 >
@@ -362,7 +391,7 @@ export default function InventoryTable({
                                                                                     title={`Delete batch ${batch.batch_number}`}
                                                                                     aria-label={`Delete batch ${batch.batch_number}`}
                                                                                     onClick={() =>
-                                                                                        console.log("Delete batch", item.item_id, batch)
+                                                                                        onDeleteBatch?.(item, batch)
                                                                                     }
                                                                                     className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-100 bg-white text-red-500 transition hover:border-red-200 hover:bg-red-50"
                                                                                 >

@@ -2,9 +2,12 @@ import type {
     AssessmentPagination,
     CreateAssessmentBody,
     CreateAssessmentResponse,
+    DeleteAssessmentResponse,
     GetAssessmentSummaryResponse,
     GetAssessmentsQuery,
     GetAssessmentsResponse,
+    UpdateAssessmentBody,
+    UpdateAssessmentResponse,
 } from "./type";
 
 /**
@@ -147,4 +150,77 @@ export async function getAssessmentsApi(
         console.log(error);
         return { data: [], pagination: EMPTY_ASSESSMENT_PAGINATION };
     }
+}
+
+/**
+ * PUT /api/assessments/:assessment_id — partial update of one assessment.
+ *
+ * `assessment_id` is the business id (e.g. "NA-000001") taken from the row, not
+ * the Mongo _id. Every field in the body is optional and only the ones sent are
+ * written, so the caller must omit anything it wants left untouched.
+ *
+ * Throws on failure, like the create: a swallowed error would let the modal
+ * report success for a record that was never written.
+ */
+export async function updateAssessmentApi(
+    assessmentId: string,
+    body: UpdateAssessmentBody
+): Promise<UpdateAssessmentResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/assessments/${assessmentId}`,
+        {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!response.ok) {
+        // Surface the backend's own validation message rather than a bare
+        // status — it names the field that failed.
+        const detail = await response.text().catch(() => "");
+
+        throw new Error(
+            `Failed to update assessment (${response.status})${
+                detail ? `: ${detail}` : ""
+            }`
+        );
+    }
+
+    const jsonData = await response.json();
+
+    return (jsonData.data ?? jsonData) as UpdateAssessmentResponse;
+}
+
+/**
+ * DELETE /api/assessments/:assessment_id — removes one assessment outright.
+ *
+ * `assessment_id` is the business id (e.g. "NA-000001") taken from the row, not
+ * the Mongo _id. There is no soft-delete flag, so a gone row cannot be undone —
+ * that is why callers gate this behind a confirmation dialog.
+ *
+ * Throws on failure, like the other writes, so the dialog cannot report the
+ * row as removed when the server answered with an error.
+ */
+export async function deleteAssessmentApi(
+    assessmentId: string
+): Promise<DeleteAssessmentResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/assessments/${assessmentId}`,
+        { method: "DELETE" }
+    );
+
+    if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+
+        throw new Error(
+            `Failed to delete assessment (${response.status})${
+                detail ? `: ${detail}` : ""
+            }`
+        );
+    }
+
+    const jsonData = await response.json();
+
+    return (jsonData.data ?? jsonData) as DeleteAssessmentResponse;
 }

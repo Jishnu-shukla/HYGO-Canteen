@@ -1,11 +1,14 @@
 import type {
     CreateDietPlanBody,
     CreateDietPlanResponse,
+    DeleteDietPlanResponse,
     DietPlanListItem,
     DietPlanPagination,
     GetDietPlanSummaryResponse,
     GetDietPlansQuery,
     GetDietPlansResponse,
+    UpdateDietPlanBody,
+    UpdateDietPlanResponse,
 } from "./type";
 
 /**
@@ -65,6 +68,71 @@ export async function createDietPlanApi(
     }
 
     return (jsonData.data ?? jsonData) as CreateDietPlanResponse;
+}
+
+/**
+ * PUT /api/dietplan/:diet_plan_id — partial update.
+ *
+ * Only the fields present on `payload` are touched, so the edit modal sends
+ * just the values it changed and the disable action sends only `status`.
+ *
+ * Throws on a non-2xx response so the caller can surface the failure; returns
+ * the updated plan, unwrapped from the `data` envelope.
+ */
+export async function updateDietPlanApi(
+    dietPlanId: string,
+    payload: UpdateDietPlanBody
+): Promise<UpdateDietPlanResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietplan/${dietPlanId}`,
+        {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        }
+    );
+
+    const jsonData = await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            jsonData?.message ??
+                `Diet plan update failed: ${response.status} ${response.statusText}`
+        );
+    }
+
+    return (jsonData.data ?? jsonData) as UpdateDietPlanResponse;
+}
+
+/**
+ * DELETE /api/dietplan/:diet_plan_id — removes the plan outright.
+ *
+ * Throws on a non-2xx response so the confirm dialog can surface the failure
+ * and stay open; returns the pre-deletion plan, unwrapped from the `data`
+ * envelope.
+ */
+export async function deleteDietPlanApi(
+    dietPlanId: string
+): Promise<DeleteDietPlanResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietplan/${dietPlanId}`,
+        {
+            method: "DELETE",
+        }
+    );
+
+    const jsonData = await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            jsonData?.message ??
+                `Diet plan delete failed: ${response.status} ${response.statusText}`
+        );
+    }
+
+    return (jsonData.data ?? jsonData) as DeleteDietPlanResponse;
 }
 
 /** Page size used by the table's pager. */

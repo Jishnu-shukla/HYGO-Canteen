@@ -1,6 +1,7 @@
 "use client";
 
 import CreateBedSideDeliveryForm from "@/components/BedSideDelivery/CreateBedSideDeliveryForm";
+import ReceiveBedSideDeliveryForm from "@/components/BedSideDelivery/ReceiveBedSideDeliveryForm";
 import { BedSideDeliverySummaryCards } from "@/components/BedSideDelivery/BedSideDeliverySummaryCards";
 import {
     createBedSideDeliveryApi,
@@ -94,6 +95,17 @@ export default function BedsideDeliveryPage() {
                 loading={isSummaryLoading}
             />
 
+            {/* Bedside delivery — confirms the handover and flips the status (PUT) */}
+            <ReceiveBedSideDeliveryForm
+                orders={orders}
+                loadingOrders={isOrdersLoading}
+                onReceived={async () => {
+                    // A confirmed handover moves pending_orders and
+                    // deliveries_today.
+                    await fetchSummary();
+                }}
+            />
+            {/* Intake — records how much of the tray was eaten (POST) */}
             <CreateBedSideDeliveryForm
                 orders={orders}
                 loadingOrders={isOrdersLoading}
@@ -106,6 +118,7 @@ export default function BedsideDeliveryPage() {
                     return record;
                 }}
             />
+
         </main>
     );
 }

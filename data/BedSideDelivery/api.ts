@@ -3,6 +3,7 @@ import type {
     BedSideDeliveryRecord,
     BedSideDeliverySummary,
     CreateBedSideDeliveryBody,
+    ReceiveBedsideDeliveryResponse,
 } from "./type";
 
 /**
@@ -113,4 +114,38 @@ export async function createBedSideDeliveryApi(
     const jsonData = await response.json();
 
     return (jsonData.data ?? jsonData) as BedSideDeliveryRecord;
+}
+
+/**
+ * PUT /api/bedsidedelivery/:order_id — confirms the handover.
+ *
+ * A bare status write: no body, no intake reading. Moves the order into the
+ * received state and stamps its delivered_at.
+ *
+ * Throws on failure so the form can show the backend's wording rather than
+ * reporting a flip that never happened.
+ */
+export async function receiveBedSideDeliveryApi(
+    order_id: string
+): Promise<ReceiveBedsideDeliveryResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/bedsidedelivery/${order_id}`,
+        { method: "PUT" }
+    );
+
+    if (!response.ok) {
+        // Prefer the backend's own wording over a bare status.
+        const jsonData = await response.json().catch(() => null);
+
+        throw new Error(
+            jsonData?.message ??
+                `Failed to confirm handover (${response.status}${
+                    jsonData ? `: ${JSON.stringify(jsonData)}` : ""
+                })`
+        );
+    }
+
+    const jsonData = await response.json();
+
+    return (jsonData.data ?? jsonData) as ReceiveBedsideDeliveryResponse;
 }

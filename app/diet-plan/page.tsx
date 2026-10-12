@@ -1,14 +1,19 @@
 "use client";
 
 import CreateDietPlanForm from "@/components/DietPlan/CreateDietPlanForm";
+import DeletePlanConfirmModal from "@/components/DietPlan/DeletePlanConfirmModal";
+import EditDietPlanModal from "@/components/DietPlan/EditDietPlanModal";
+import PlanStatusConfirmModal from "@/components/DietPlan/PlanStatusConfirmModal";
 import { DietPlanSummaryCards } from "@/components/DietPlan/DietPlanSummaryCards";
 import { DietPlanTable } from "@/components/DietPlan/DietPlanTable";
 import {
     DIET_PLAN_PAGE_SIZE,
     EMPTY_DIET_PLAN_PAGINATION,
     createDietPlanApi,
+    deleteDietPlanApi,
     getDietPlansApi,
     getDietPlanSummaryApi,
+    updateDietPlanApi,
 } from "@/data/DietPlan/api";
 import { getPatientMenuPickItemsApi } from "@/data/Menu/api";
 import type { PatientMenuPickItem } from "@/data/Menu/type";
@@ -17,7 +22,10 @@ import type {
     CreateDietPlanResponse,
     DietPlanListItem,
     DietPlanPagination,
+    DietPlanStatus,
     GetDietPlanSummaryResponse,
+    UpdateDietPlanBody,
+    UpdateDietPlanResponse,
 } from "@/data/DietPlan/type";
 import { Wrench } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -42,6 +50,17 @@ function DietPlanContent() {
     // All start true so the mount fetch needs no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
     const [isTableLoading, setIsTableLoading] = useState(true);
+
+    // Row actions. Only one modal is ever open, so the plan under edit and the
+    // plan awaiting a status or delete confirmation are separate pieces of
+    // state.
+    const [editingPlan, setEditingPlan] = useState<DietPlanListItem | null>(
+        null
+    );
+    const [planToToggleStatus, setPlanToToggleStatus] =
+        useState<DietPlanListItem | null>(null);
+    const [planToDelete, setPlanToDelete] =
+        useState<DietPlanListItem | null>(null);
 
     const fetchSummary = useCallback(async () => {
         try {
@@ -134,6 +153,57 @@ function DietPlanContent() {
         fetchTable(nextPage);
     };
 
+    // Edit and disable both change the plan, so both refresh the table (on the
+    // same page) and the summary, which counts active plans.
+    const handleUpdatePlan = async (
+        plan: DietPlanListItem,
+        payload: UpdateDietPlanBody
+    ): Promise<UpdateDietPlanResponse> => {
+        const updated = await updateDietPlanApi(plan.diet_plan_id, payload);
+
+        await Promise.all([fetchTable(pagination.page), fetchSummary()]);
+
+        return updated;
+    };
+
+    // Flips a plan between Active and Disable: the button is a toggle, so the
+    // target status is the opposite of what the row currently shows.
+    // Rejects on failure so the confirm dialog can surface the reason and stay
+    // open; closes the dialog only once the write lands.
+    const handleTogglePlanStatus = async () => {
+        if (!planToToggleStatus) return;
+
+        const nextStatus: DietPlanStatus =
+            planToToggleStatus.status === "Disable" ? "Active" : "Disable";
+
+        await updateDietPlanApi(planToToggleStatus.diet_plan_id, {
+            status: nextStatus,
+        });
+
+        await Promise.all([fetchTable(pagination.page), fetchSummary()]);
+
+        setPlanToToggleStatus(null);
+    };
+
+    // Rejects on failure so the confirm dialog can surface the reason and stay
+    // open; closes the dialog only once the row is gone.
+    const handleDeletePlan = async () => {
+        if (!planToDelete) return;
+
+        await deleteDietPlanApi(planToDelete.diet_plan_id);
+
+        // Removing the last row on a page would leave it empty, so step back a
+        // page in that case; otherwise reload the page we were on.
+        const targetPage =
+            plans.length === 1 && pagination.page > 1
+                ? pagination.page - 1
+                : pagination.page;
+
+        await Promise.all([fetchTable(targetPage), fetchSummary()]);
+
+        setPlanToDelete(null);
+    };
+
     return (
         <main className="min-h-screen w-full bg-slate-50 p-3 md:p-4">
             {/* Header */}
@@ -180,7 +250,42 @@ function DietPlanContent() {
                 loading={isTableLoading}
                 pagination={pagination}
                 onPageChange={handlePageChange}
+                onEdit={setEditingPlan}
+                onToggleStatus={setPlanToToggleStatus}
+                onDelete={setPlanToDelete}
             />
+
+            {editingPlan && (
+                <EditDietPlanModal
+                    key={editingPlan.diet_plan_id}
+                    plan={editingPlan}
+                    onSubmit={(payload) => handleUpdatePlan(editingPlan, payload)}
+                    onClose={() => setEditingPlan(null)}
+                />
+            )}
+
+            {planToToggleStatus && (
+                <PlanStatusConfirmModal
+                    planId={planToToggleStatus.diet_plan_id}
+                    patientName={planToToggleStatus.patient_name}
+                    nextStatus={
+                        planToToggleStatus.status === "Disable"
+                            ? "Active"
+                            : "Disable"
+                    }
+                    onCancel={() => setPlanToToggleStatus(null)}
+                    onConfirm={handleTogglePlanStatus}
+                />
+            )}
+
+            {planToDelete && (
+                <DeletePlanConfirmModal
+                    planId={planToDelete.diet_plan_id}
+                    patientName={planToDelete.patient_name}
+                    onCancel={() => setPlanToDelete(null)}
+                    onConfirm={handleDeletePlan}
+                />
+            )}
         </main>
     );
 }

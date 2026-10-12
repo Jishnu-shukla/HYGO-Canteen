@@ -1,6 +1,6 @@
 import { AT_RISK_THRESHOLD } from "@/data/Assessment/type";
 import type { AssessmentListItem, AssessmentPagination } from "@/data/Assessment/type";
-import { TriangleAlert } from "lucide-react";
+import { Pencil, Trash2, TriangleAlert } from "lucide-react";
 
 const DASH = "—";
 
@@ -10,18 +10,19 @@ const bodyCell = "px-2 py-2 text-[11px] text-slate-600";
 
 /**
  * Percentage widths for `table-fixed`. Assessment, Patient and Date are
- * fixed-ish; Notes absorbs the remainder and truncates rather than wrap, since
- * clinician free text is the only field of unbounded length here.
+ * fixed-ish; Notes absorbs a fifth of the width and truncates rather than wrap,
+ * since clinician free text is the only field of unbounded length here.
  */
 const COL_WIDTHS = [
-    "12%", // Assessment
-    "15%", // Patient
-    "11%", // Date
-    "7%", // BMI
-    "9%", // NRS
-    "9%", // Calories
-    "11%", // Route
-    "25%", // Notes
+    "11%", // Assessment
+    "14%", // Patient
+    "10%", // Date
+    "6%", // BMI
+    "8%", // NRS
+    "8%", // Calories
+    "10%", // Route
+    "20%", // Notes
+    "13%", // Actions
 ];
 
 const HEADINGS = [
@@ -33,6 +34,7 @@ const HEADINGS = [
     "Calories",
     "Route",
     "Notes",
+    "Actions",
 ];
 
 /**
@@ -101,6 +103,8 @@ export function AssessmentTable({
     riskFilter = "all",
     onRiskFilterChange,
     onPageChange,
+    onEdit,
+    onDelete,
 }: {
     assessments: AssessmentListItem[];
     loading?: boolean;
@@ -109,6 +113,10 @@ export function AssessmentTable({
     riskFilter?: RiskFilter;
     onRiskFilterChange?: (value: RiskFilter) => void;
     onPageChange?: (page: number) => void;
+    /** Opens the edit modal for a row; the row is the record to update. */
+    onEdit?: (row: AssessmentListItem) => void;
+    /** Opens the delete confirmation for a row; the row is about to be removed. */
+    onDelete?: (row: AssessmentListItem) => void;
 }) {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 0;
@@ -319,6 +327,32 @@ export function AssessmentTable({
                                             title={row.clinical_notes}
                                         >
                                             {row.clinical_notes || DASH}
+                                        </td>
+
+                                        <td className={bodyCell}>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onEdit?.(row)}
+                                                    disabled={!onEdit}
+                                                    title={`Edit ${row.assessment_id}`}
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                                >
+                                                    <Pencil size={12} />
+                                                    Edit
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onDelete?.(row)}
+                                                    disabled={!onDelete}
+                                                    title={`Delete ${row.assessment_id}`}
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                                >
+                                                    <Trash2 size={12} />
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );

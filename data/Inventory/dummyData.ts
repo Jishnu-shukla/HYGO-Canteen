@@ -54,7 +54,7 @@ export const inventoryItems = [
             received_date: "2026-01-01",
             initial_quantity: 100,
             current_quantity: 50,
-            expiry: "2026-12-31",
+            expiry_date: "2026-12-31",
             unit_cost: 1.5,
         }]
     },
@@ -70,7 +70,7 @@ export const inventoryItems = [
             received_date: "2026-01-01",
             initial_quantity: 50,
             current_quantity: 30,
-            expiry: "2026-11-30",
+            expiry_date: "2026-11-30",
             unit_cost: 1.2,
         }]
     },
@@ -86,7 +86,7 @@ export const inventoryItems = [
             received_date: "2026-01-01",
             initial_quantity: 50,
             current_quantity: 20,
-            expiry: "2026-10-31",
+            expiry_date: "2026-10-31",
             unit_cost: 2.5
         }]
     },
@@ -102,7 +102,7 @@ export const inventoryItems = [
             received_date: "2026-01-01",
             initial_quantity: 30,
             current_quantity: 10,
-            expiry: "2026-09-30",
+            expiry_date: "2026-09-30",
             unit_cost: 3.0  
         }]
     },
@@ -118,7 +118,7 @@ export const inventoryItems = [
             received_date: "2026-01-01",
             initial_quantity: 50,
             current_quantity: 15,
-            expiry: "2026-10-31",
+            expiry_date: "2026-10-31",
             unit_cost: 2.0
         }]
     }

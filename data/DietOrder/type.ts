@@ -137,3 +137,127 @@ export interface CreateDietOrderBody {
     /** Flags the order for priority kitchen handling. Feeds special_orders in the summary. */
     is_special?: boolean;
 }
+
+/**
+ * The order as returned by POST /api/dietorder and PUT /api/dietorder/:order_id.
+ *
+ * It is the stored order with patient_name resolved from Paitent. The list row
+ * (DietOrderListItem) adds the diet_type lookup on top of this, so a create/update
+ * response is a subset of what the table renders.
+ */
+export interface CreateDietOrderResponse {
+    order_id: string;
+    /** Raw Mongo id of the patient. */
+    patient_id: string;
+    uhid: string;
+    patient_name: string;
+    ward_id: string | null;
+    ward_name: string;
+    bed_number: string;
+    diet_plan_id: string | null;
+    /** Items the server derived from the active plan and published menu. */
+    master_item_ids: string[];
+    meal_type: MealSlot;
+    /** ISO timestamp. */
+    scheduled_date: string;
+    order_source: string;
+    special_instruction: string;
+    status: OrderStatus;
+    is_special: boolean;
+    cancellation_reason: string | null;
+    dispatched_at: string | null;
+    delivered_at: string | null;
+    delivered_by_user_id: string | null;
+    qr_code_tag: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Update
+ * ------------------------------------------------------------------ */
+
+/** Route param: PUT /api/dietorder/:order_id */
+export interface UpdateDietOrderParams {
+    /**
+     * Business id of the order, e.g. "ORDER-000001". Optional at the type level
+     * only — the controller's 400 guard enforces presence.
+     */
+    order_id?: string;
+}
+
+/**
+ * Partial update of one order — every field is optional and omitted fields are
+ * left unchanged. The identity, derived and lifecycle fields are deliberately
+ * not updatable:
+ *
+ * - order_id            is the route param.
+ * - uhid / patient_id   an order is not reassigned to another patient; raise
+ *                       a new order instead.
+ * - patient_name        is display-only and never persisted (see
+ *                       CreateDietOrderBody).
+ * - diet_plan_id / master_item_ids  are derived by the server at create time
+ *                       from the patient's active plan and published menu for
+ *                       the meal. They are not accepted here; the service
+ *                       re-derives them when scheduled_date or meal_type
+ *                       changes, the same way create() does, so the order
+ *                       cannot point at a plan or a set of items for a meal it
+ *                       no longer is.
+ * - status and the lifecycle fields (cancellation_reason, dispatched_at,
+ *   delivered_at, delivered_by_user_id, qr_code_tag)  are owned by the
+ *   kitchen/dispatch/delivery endpoints, not the edit form.
+ *
+ * Free-text fields (ward_name, bed_number, order_source,
+ * special_instruction) accept "" to clear the value, which is what the schema
+ * stores for an unset field.
+ */
+export interface UpdateDietOrderBody {
+    /** ISO date string; the server converts it to a Date. */
+    scheduled_date?: string;
+    meal_type?: MealSlot;
+    /** Ward display text, e.g. "Cardiology Ward". "" clears it. */
+    ward_name?: string;
+    /** Maps to the schema's misspelled bad_number field. "" clears it. */
+    bed_number?: string;
+    /** Who raised the order, e.g. "Dietitian", "Nurse", "Doctor". "" clears it. */
+    order_source?: string;
+    /** Free-text kitchen note, e.g. "Thickened liquid". "" clears it. */
+    special_instruction?: string;
+    /** Flags the order for priority kitchen handling. */
+    is_special?: boolean;
+}
+
+/**
+ * The order after the update — the same shape the create response returns, with
+ * diet_plan_id / master_item_ids reflecting any re-derivation.
+ */
+export type UpdateDietOrderResponse = CreateDietOrderResponse;
+
+/* ------------------------------------------------------------------ *
+ * Delete
+ * ------------------------------------------------------------------ */
+
+/** Route param: DELETE /api/dietorder/:order_id */
+export interface DeleteDietOrderParams {
+    /**
+     * Business id of the order, e.g. "ORDER-000001". Optional at the type level
+     * only — the controller's 400 guard enforces presence.
+     */
+    order_id?: string;
+}
+
+/**
+ * The order as it looked immediately before deletion, in the same shape the
+ * create/update responses return, plus a deleted flag so clients can
+ * distinguish a real delete from an empty payload.
+ *
+ * DietOrder has no soft-delete flag, so the row is removed outright. That is
+ * deliberately not the same as status: "Cancelled_Order" (see
+ * CreateDietOrderBody): cancelling keeps the order and its cancellation_reason
+ * for the audit trail, whereas this erases the record.
+ */
+export interface DeleteDietOrderResponse {
+    deleted: true;
+    /** The removed order. */
+    diet_order: CreateDietOrderResponse;
+}

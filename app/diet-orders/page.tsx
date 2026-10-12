@@ -1,6 +1,8 @@
 "use client";
 
 import CreateDietOrderForm from "@/components/DietOrder/CreateDietOrderForm";
+import DeleteDietOrderConfirmModal from "@/components/DietOrder/DeleteDietOrderConfirmModal";
+import EditDietOrderModal from "@/components/DietOrder/EditDietOrderModal";
 import { DietOrderBoard } from "@/components/DietOrder/DietOrderBoard";
 import { DietOrderSummaryCard } from "@/components/DietOrder/DietOrderSummaryCard";
 import { DietOrderTable } from "@/components/DietOrder/DietOrderTable";
@@ -8,15 +10,19 @@ import {
     DIET_ORDER_PAGE_SIZE,
     EMPTY_PAGINATION,
     createDietOrderApi,
+    deleteDietOrderApi,
     getDietOrdersApi,
     getDietOrderSummaryApi,
     getTodayDietOrdersApi,
+    updateDietOrderApi,
 } from "@/data/DietOrder/api";
 import {
     CreateDietOrderBody,
     DietOrderListItem,
     DietOrderPagination,
     GetDietOrderSummaryResponse,
+    UpdateDietOrderBody,
+    UpdateDietOrderResponse,
 } from "@/data/DietOrder/type";
 import { ShoppingBag } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -39,6 +45,15 @@ export default function DietOrdersPage() {
     const [isTableLoading, setIsTableLoading] = useState(true);
 
     const [page, setPage] = useState(1);
+
+    // The order under edit, or null when the modal is closed.
+    const [editingOrder, setEditingOrder] = useState<DietOrderListItem | null>(
+        null
+    );
+
+    // The order awaiting delete confirmation, or null when that modal is closed.
+    const [orderToDelete, setOrderToDelete] =
+        useState<DietOrderListItem | null>(null);
 
     const fetchSummary = useCallback(async () => {
         try {
@@ -144,6 +159,44 @@ export default function DietOrdersPage() {
         fetchTable(nextPage);
     };
 
+    // An edit can change is_special (feeds the summary), the meal/date (feeds
+    // the board) or the diet type, so all three views are refreshed. The row
+    // keeps its position: the list is ordered by createdAt, which never moves.
+    const handleUpdateOrder = async (
+        order: DietOrderListItem,
+        payload: UpdateDietOrderBody
+    ): Promise<UpdateDietOrderResponse> => {
+        const updated = await updateDietOrderApi(order.order_id, payload);
+
+        await Promise.all([fetchSummary(), fetchBoard(), fetchTable(page)]);
+
+        return updated;
+    };
+
+    // Rejects on failure so the confirm dialog can surface the reason and stay
+    // open; closes the dialog only once the row is gone.
+    const handleDeleteOrder = async () => {
+        if (!orderToDelete) return;
+
+        await deleteDietOrderApi(orderToDelete.order_id);
+
+        // Removing the last row on a page would leave it empty, so step back a
+        // page in that case; otherwise reload the page we were on. The board
+        // and cards both count real rows, so both are refreshed too.
+        const targetPage =
+            tableOrders.length === 1 && page > 1 ? page - 1 : page;
+
+        if (targetPage !== page) setPage(targetPage);
+
+        await Promise.all([
+            fetchSummary(),
+            fetchBoard(),
+            fetchTable(targetPage),
+        ]);
+
+        setOrderToDelete(null);
+    };
+
     return (
         <main className="min-h-screen w-full bg-slate-50 p-3 md:p-4">
             {/* Header */}
@@ -203,7 +256,29 @@ export default function DietOrdersPage() {
                 loading={isTableLoading}
                 pagination={pagination}
                 onPageChange={handlePageChange}
+                onEdit={setEditingOrder}
+                onDelete={setOrderToDelete}
             />
+
+            {editingOrder && (
+                <EditDietOrderModal
+                    key={editingOrder.order_id}
+                    order={editingOrder}
+                    onSubmit={(payload) =>
+                        handleUpdateOrder(editingOrder, payload)
+                    }
+                    onClose={() => setEditingOrder(null)}
+                />
+            )}
+
+            {orderToDelete && (
+                <DeleteDietOrderConfirmModal
+                    orderId={orderToDelete.order_id}
+                    patientName={orderToDelete.patient_name}
+                    onCancel={() => setOrderToDelete(null)}
+                    onConfirm={handleDeleteOrder}
+                />
+            )}
         </main>
     );
 }

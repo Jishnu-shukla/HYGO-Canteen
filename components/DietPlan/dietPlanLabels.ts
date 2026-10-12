@@ -48,10 +48,12 @@ export const DIET_TYPE_LABEL: Record<DietType, string> = {
 
 export const PLAN_STATUS_LABEL: Record<DietPlanStatus, string> = {
     Active: "Active",
+    Disable: "Disabled",
 };
 
 export const PLAN_STATUS_BADGE: Record<DietPlanStatus, string> = {
     Active: "bg-emerald-50 text-emerald-700",
+    Disable: "bg-slate-100 text-slate-500",
 };
 
 /** Used when the server sends a status this build doesn't know yet. */

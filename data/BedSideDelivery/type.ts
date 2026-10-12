@@ -1,3 +1,5 @@
+import type { OrderStatus } from "@/data/DietOrder/type";
+
 /* ------------------------------------------------------------------ *
  * Responses
  * ------------------------------------------------------------------ */
@@ -92,4 +94,46 @@ export interface BedSideDeliveryRecord extends CreateBedSideDeliveryBody {
     /** ISO timestamp. */
     createdAt: string;
     updatedAt: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Handover confirmation
+ * ------------------------------------------------------------------ */
+
+/**
+ * Route param for the bare handover confirmation.
+ *
+ * Optional at the type level only — `req.params.order_id` is
+ * `string | undefined` under noUncheckedIndexedAccess, and the controller
+ * enforces presence with a 400 guard.
+ *
+ * This is the business id ("ORDER-000001"), the same key the picker hands
+ * back and that POST /api/bedsidedelivery takes in its body — not the Mongo
+ * _id.
+ */
+export interface ReceiveBedsideDeliveryParams {
+    order_id?: string;
+}
+
+/**
+ * The order as it stands after the handover is confirmed.
+ *
+ * Unlike POST /api/bedsidedelivery this endpoint carries no body: it is a bare
+ * status write with no intake reading, so there is no PlateWasteAnalytics row
+ * to report back. Only the three fields the flip actually touches are returned —
+ * the order it belongs to, its new state, and the confirmation timestamp.
+ *
+ * The response is deliberately not a full order snapshot: the picker that
+ * addresses this endpoint already holds the order, so re-sending patient and
+ * ward data would be a payload the caller cannot use.
+ *
+ * delivered_at is the response spelling; the order stores the misspelled
+ * delievered_at, matching the alias used by POST and the list endpoints.
+ */
+export interface ReceiveBedsideDeliveryResponse {
+    order_id: string;
+    /** New state after the flip — the received member of OrderStatus. */
+    status: OrderStatus;
+    /** When the handover was confirmed. Also written to the order as delievered_at. */
+    delivered_at: string;
 }

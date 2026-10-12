@@ -10,7 +10,7 @@ import type {
     GetFssaichecklist,
     UpdateFssaiChecklistStatusResponse,
 } from "@/data/FssaiChecklist/type";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 const DASH = "—";
 
@@ -18,20 +18,24 @@ const headCell =
     "whitespace-nowrap px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-amber-700";
 const bodyCell = "px-2 py-2 text-[11px] text-slate-600";
 
-/** Percentage widths for `table-fixed`. Notes and Categories absorb the bulk. */
+/**
+ * Percentage widths for `table-fixed`. Each audit now expands to one row per
+ * check, so the Category column only ever holds a single chip and the audit
+ * columns (Notes in particular) take the freed space.
+ */
 const COL_WIDTHS = [
-    "10%", // Checklist ID
-    "11%", // Audit Date
-    "23%", // Category Results
-    "8%", // Status
-    "13%", // Notes
-    "14%", // Actions
+    "12%", // Checklist ID
+    "12%", // Audit Date
+    "16%", // Category
+    "13%", // Status
+    "27%", // Notes
+    "20%", // Actions
 ];
 
 const HEADINGS = [
     "Checklist ID",
     "Audit Date",
-    "Category Results",
+    "Category",
     "Status",
     "Notes",
     "Actions",
@@ -269,30 +273,42 @@ export function FssaiChecklistTable({
 
                                 const notesValue = getNotes(row);
 
-                                return [
-                                    <tr
-                                        key={row.checklist_id}
-                                        className="border-b border-slate-50 transition last:border-0 hover:bg-slate-50/70"
-                                    >
-                                        <td
-                                            className={`${bodyCell} truncate font-semibold text-slate-700`}
-                                            title={row.checklist_id}
-                                        >
-                                            {row.checklist_id || DASH}
-                                        </td>
+                                // One row per check: each category is its own
+                                // complete entry, so a row repeats the audit it
+                                // belongs to. 5 rows per audit, matching the
+                                // summary invariant.
+                                const lastIndex = sortedCategories.length - 1;
 
-                                        <td
-                                            className={`${bodyCell} whitespace-nowrap`}
-                                        >
-                                            {formatDate(row.audit_date)}
-                                        </td>
+                                return (
+                                    <Fragment key={row.checklist_id}>
+                                        {sortedCategories.map(
+                                            (check, index) => (
+                                                <tr
+                                                    key={`${row.checklist_id}-${check.category}`}
+                                                    className={`transition hover:bg-slate-50/70 ${
+                                                        index === lastIndex
+                                                            ? "border-b border-slate-200"
+                                                            : "border-b border-slate-50"
+                                                    }`}
+                                                >
+                                                    <td
+                                                        className={`${bodyCell} truncate font-semibold text-slate-700`}
+                                                        title={row.checklist_id}
+                                                    >
+                                                        {row.checklist_id ||
+                                                            DASH}
+                                                    </td>
 
-                                        <td className={bodyCell}>
-                                            <div className="flex flex-wrap gap-1">
-                                                {sortedCategories.map(
-                                                    (check) => (
+                                                    <td
+                                                        className={`${bodyCell} whitespace-nowrap`}
+                                                    >
+                                                        {formatDate(
+                                                            row.audit_date
+                                                        )}
+                                                    </td>
+
+                                                    <td className={bodyCell}>
                                                         <span
-                                                            key={check.category}
                                                             title={`${CATEGORY_LABELS[check.category]}: ${check.result}${
                                                                 check.shift
                                                                     ? ` · ${check.shift}`
@@ -302,7 +318,8 @@ export function FssaiChecklistTable({
                                                         >
                                                             {
                                                                 CATEGORY_LABELS[
-                                                                    check.category
+                                                                    check
+                                                                        .category
                                                                 ]
                                                             }
                                                             {check.shift && (
@@ -314,122 +331,136 @@ export function FssaiChecklistTable({
                                                                 </span>
                                                             )}
                                                         </span>
-                                                    )
-                                                )}
-                                            </div>
-                                        </td>
+                                                    </td>
 
-                                        <td className={bodyCell}>
-                                            <span
-                                                title={`Review status. Next toggle sets ${NEXT_STATUS[status]}.`}
-                                                className={`inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold ${STATUS_BADGE[status]}`}
+                                                    <td className={bodyCell}>
+                                                        <span
+                                                            title={`Review status. Next toggle sets ${NEXT_STATUS[status]}.`}
+                                                            className={`inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold ${STATUS_BADGE[status]}`}
+                                                        >
+                                                            {toggling[
+                                                                row
+                                                                    .checklist_id
+                                                            ]
+                                                                ? "…"
+                                                                : status
+                                                                      .split(
+                                                                          "_"
+                                                                      )
+                                                                      .join(
+                                                                          " "
+                                                                      )}
+                                                        </span>
+                                                    </td>
+
+                                                    <td
+                                                        className={`${bodyCell} truncate italic`}
+                                                        title={notesValue}
+                                                    >
+                                                        {notesValue || DASH}
+                                                    </td>
+
+                                                    <td className={bodyCell}>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                disabled={
+                                                                    !!toggling[
+                                                                        row
+                                                                            .checklist_id
+                                                                    ]
+                                                                }
+                                                                onClick={() =>
+                                                                    handleToggle(
+                                                                        row
+                                                                    )
+                                                                }
+                                                                title={`Set to ${NEXT_STATUS[status]}`}
+                                                                className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                                            >
+                                                                Toggle
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    openNotesEditor(
+                                                                        row
+                                                                    )
+                                                                }
+                                                                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50"
+                                                            >
+                                                                Add notes
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        )}
+
+                                        {/* Inline notes editor, expanded once
+                                            under the audit's check rows. */}
+                                        {editingNotesId ===
+                                            row.checklist_id && (
+                                            <tr
+                                                key={`${row.checklist_id}-notes`}
+                                                className="border-b border-slate-100 bg-amber-50/40"
                                             >
-                                                {toggling[row.checklist_id]
-                                                    ? "…"
-                                                    : status
-                                                          .split("_")
-                                                          .join(" ")}
-                                            </span>
-                                        </td>
-
-                                        <td
-                                            className={`${bodyCell} truncate italic`}
-                                            title={notesValue}
-                                        >
-                                            {notesValue || DASH}
-                                        </td>
-
-                                        <td className={bodyCell}>
-                                            <div className="flex items-center gap-1.5">
-                                                <button
-                                                    type="button"
-                                                    disabled={
-                                                        !!toggling[
-                                                            row.checklist_id
-                                                        ]
-                                                    }
-                                                    onClick={() =>
-                                                        handleToggle(row)
-                                                    }
-                                                    title={`Set to ${NEXT_STATUS[status]}`}
-                                                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                                <td
+                                                    colSpan={COL_WIDTHS.length}
+                                                    className="px-4 py-3"
                                                 >
-                                                    Toggle
-                                                </button>
+                                                    <label
+                                                        htmlFor={`notes-${row.checklist_id}`}
+                                                        className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-500"
+                                                    >
+                                                        Corrective action notes —
+                                                        persisted with the
+                                                        row&apos;s status
+                                                    </label>
 
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        openNotesEditor(row)
-                                                    }
-                                                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50"
-                                                >
-                                                    Add notes
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>,
-
-                                    /* Inline notes editor, expanded under the
-                                       owning row while active. */
-                                    editingNotesId === row.checklist_id && (
-                                        <tr
-                                            key={`${row.checklist_id}-notes`}
-                                            className="border-b border-slate-100 bg-amber-50/40"
-                                        >
-                                            <td
-                                                colSpan={COL_WIDTHS.length}
-                                                className="px-4 py-3"
-                                            >
-                                                <label
-                                                    htmlFor={`notes-${row.checklist_id}`}
-                                                    className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-500"
-                                                >
-                                                    Corrective action notes —
-                                                    persisted with the
-                                                    row&apos;s status
-                                                </label>
-
-                                                <textarea
-                                                    id={`notes-${row.checklist_id}`}
-                                                    value={noteDraft}
-                                                    onChange={(event) =>
-                                                        setNoteDraft(
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    rows={2}
-                                                    placeholder="Record follow-up actions for this audit..."
-                                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
-                                                />
-
-                                                <div className="mt-2 flex items-center justify-end gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setEditingNotesId(
-                                                                null
+                                                    <textarea
+                                                        id={`notes-${row.checklist_id}`}
+                                                        value={noteDraft}
+                                                        onChange={(event) =>
+                                                            setNoteDraft(
+                                                                event.target
+                                                                    .value
                                                             )
                                                         }
-                                                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100"
-                                                    >
-                                                        Cancel
-                                                    </button>
+                                                        rows={2}
+                                                        placeholder="Record follow-up actions for this audit..."
+                                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                                                    />
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            saveNotes(row)
-                                                        }
-                                                        className="rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-amber-700"
-                                                    >
-                                                        Save
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ),
-                                ];
+                                                    <div className="mt-2 flex items-center justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setEditingNotesId(
+                                                                    null
+                                                                )
+                                                            }
+                                                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100"
+                                                        >
+                                                            Cancel
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                saveNotes(row)
+                                                            }
+                                                            className="rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-amber-700"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </Fragment>
+                                );
                             })
                         )}
                     </tbody>
@@ -437,10 +468,10 @@ export function FssaiChecklistTable({
             </div>
 
             <p className="border-t border-slate-100 bg-slate-50/70 px-4 py-2 text-[10px] text-slate-400">
-                Status and notes arrive with each row; Toggle and Save answer
-                with the updated row, so the table re-renders without a second
-                GET. Pass/fail chips follow the summary invariant: 5 checks per
-                audit.
+                One row per check — every category is its own entry (5 rows per
+                audit, matching the summary invariant), with the audit it
+                belongs to repeated. Toggle and Save answer with the updated
+                row, so the table re-renders without a second GET.
             </p>
         </section>
     );

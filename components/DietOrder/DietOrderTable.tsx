@@ -3,7 +3,7 @@ import type {
     DietOrderPagination,
     OrderStatus,
 } from "@/data/DietOrder/type";
-import { TriangleAlert } from "lucide-react";
+import { Pencil, Trash2, TriangleAlert } from "lucide-react";
 import { STATUS_BADGE, STATUS_LABEL, mealBadge } from "./orderStatus";
 
 const DASH = "—";
@@ -26,9 +26,10 @@ const COL_WIDTHS = [
     "6%", // Meal
     "6%", // Diet
     "6%", // Schedule
-    "15%", // Doctor Instruction
+    "11%", // Doctor Instruction
     "7%", // Status
     "5%", // Special
+    "10%", // Actions
 ];
 
 /** "2026-10-02T00:00:00.000Z" -> "02 Oct 2026". Falls back to the raw string. */
@@ -51,11 +52,15 @@ export function DietOrderTable({
     loading = false,
     pagination,
     onPageChange,
+    onEdit,
+    onDelete,
 }: {
     orders: DietOrderListItem[];
     loading?: boolean;
     pagination?: DietOrderPagination;
     onPageChange?: (page: number) => void;
+    onEdit?: (order: DietOrderListItem) => void;
+    onDelete?: (order: DietOrderListItem) => void;
 }) {
     const page = pagination?.page ?? 1;
     const totalPages = pagination?.total_pages ?? 1;
@@ -89,8 +94,8 @@ export function DietOrderTable({
             <div className="overflow-x-auto">
                 <table className="w-full table-fixed border-collapse text-left">
                     <colgroup>
-                        {COL_WIDTHS.map((width) => (
-                            <col key={`${width}-${Math.random()}`} style={{ width }} />
+                        {COL_WIDTHS.map((width, index) => (
+                            <col key={index} style={{ width }} />
                         ))}
                     </colgroup>
 
@@ -108,6 +113,7 @@ export function DietOrderTable({
                                 "Doctor Instruction",
                                 "Status",
                                 "Special",
+                                "Actions",
                             ].map((heading) => (
                                 <th key={heading} scope="col" className={headCell}>
                                     {heading}
@@ -120,7 +126,7 @@ export function DietOrderTable({
                         {loading ? (
                             <tr>
                                 <td
-                                    colSpan={11}
+                                    colSpan={12}
                                     className="px-4 py-10 text-center text-xs text-slate-400"
                                 >
                                     Loading orders...
@@ -129,7 +135,7 @@ export function DietOrderTable({
                         ) : orders.length === 0 ? (
                             <tr>
                                 <td
-                                    colSpan={11}
+                                    colSpan={12}
                                     className="px-4 py-10 text-center text-xs text-slate-400"
                                 >
                                     No orders were created today.
@@ -251,6 +257,32 @@ export function DietOrderTable({
                                                 {DASH}
                                             </span>
                                         )}
+                                    </td>
+
+                                    <td className={`${bodyCell} text-right`}>
+                                        <div className="flex items-center justify-end gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => onEdit?.(order)}
+                                                title={`Edit order ${order.order_id}`}
+                                                aria-label={`Edit order ${order.order_id}`}
+                                                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-white text-blue-700 transition hover:bg-blue-50"
+                                            >
+                                                <Pencil size={14} />
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    onDelete?.(order)
+                                                }
+                                                title={`Delete order ${order.order_id}`}
+                                                aria-label={`Delete order ${order.order_id}`}
+                                                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))

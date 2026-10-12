@@ -194,3 +194,80 @@ export interface CreateAllergyPrefResponse {
     /** ISO timestamp. */
     createdAt: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Update
+ * ------------------------------------------------------------------ */
+
+/** Route param: PUT /api/allergypref/:allergy_preference_id */
+export interface UpdateAllergyPrefParams {
+    /**
+     * Business id of the record, e.g. "AP-000001". Optional at the type level
+     * only — the controller's 400 guard enforces presence.
+     */
+    allergy_preference_id?: string;
+}
+
+/**
+ * Partial update of one preference record — every field is optional and omitted
+ * fields are left unchanged. The identity fields are deliberately not
+ * updatable:
+ *
+ * - allergy_preference_id  is the route param.
+ * - patient_id / uhid      a record is not reassigned to another patient;
+ *                          create a new record instead.
+ * - patient_name           is display-only and never persisted (see
+ *                          CreateAllergyPrefBody), so it is not accepted here.
+ * - prescribed_by / logged_by  stay server/auth-owned; accepting them would
+ *                          let a client forge who prescribed a record.
+ *
+ * allergies / intolerances / extra_notes accept "" to clear the value, which
+ * is what the schema stores for an unset field.
+ */
+export interface UpdateAllergyPrefBody {
+    /** Single free-text allergy, e.g. "Peanuts". "" clears it. */
+    allergies?: string;
+    /** Single free-text intolerance, e.g. "Lactose". "" clears it. */
+    intolerances?: string;
+    severity?: AllergySeverity;
+    religious_dietary_restrictions?: ReligiousDietaryRestriction;
+    /** Free-text clinician note. "" clears it. */
+    extra_notes?: string;
+    /** Whether the kitchen should apply this as the standing default. */
+    is_menu_default?: boolean;
+}
+
+/**
+ * The record after the update — the same full-detail shape the create response
+ * returns, with patient_name re-read from Paitent and the audit fields as
+ * stored.
+ */
+export type UpdateAllergyPrefResponse = CreateAllergyPrefResponse;
+
+/* ------------------------------------------------------------------ *
+ * Delete
+ * ------------------------------------------------------------------ */
+
+/** Route param: DELETE /api/allergypref/:allergy_preference_id */
+export interface DeleteAllergyPrefParams {
+    /**
+     * Business id of the record, e.g. "AP-000001". Optional at the type level
+     * only — the controller's 400 guard enforces presence.
+     */
+    allergy_preference_id?: string;
+}
+
+/**
+ * The record as it looked immediately before deletion, in the same full-detail
+ * shape the create/update responses return, plus a deleted flag so clients can
+ * distinguish a real delete from an empty payload.
+ *
+ * AllergyPreference has no soft-delete flag, so the row is removed outright;
+ * a record that should be kept but retired is better edited via
+ * UpdateAllergyPrefBody.
+ */
+export interface DeleteAllergyPrefResponse {
+    deleted: true;
+    /** The removed record. */
+    allergy_preference: CreateAllergyPrefResponse;
+}

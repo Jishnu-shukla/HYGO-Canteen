@@ -2,9 +2,12 @@ import type {
     AllergyPrefPagination,
     CreateAllergyPrefBody,
     CreateAllergyPrefResponse,
+    DeleteAllergyPrefResponse,
     GetAllergyPrefSummaryResponse,
     GetAllergyPrefsQuery,
     GetAllergyPrefsResponse,
+    UpdateAllergyPrefBody,
+    UpdateAllergyPrefResponse,
 } from "./type";
 
 /**
@@ -68,6 +71,78 @@ export async function createAllergyPrefApi(
     const jsonData = await response.json();
 
     return (jsonData.data ?? jsonData) as CreateAllergyPrefResponse;
+}
+
+/**
+ * PUT /api/allergypref/:allergy_preference_id — partial update of one record.
+ *
+ * Only the fields present on `payload` are touched, so the edit form sends just
+ * the values it changed. Throws on a non-2xx response (including the backend's
+ * own validation message when it sends one) so the modal can surface the reason
+ * and stay open; returns the updated record, unwrapped from the `data`
+ * envelope.
+ */
+export async function updateAllergyPrefApi(
+    allergyPreferenceId: string,
+    payload: UpdateAllergyPrefBody
+): Promise<UpdateAllergyPrefResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/allergypref/${allergyPreferenceId}`,
+        {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        }
+    );
+
+    if (!response.ok) {
+        // Surfaces the backend's own validation message, which is far more
+        // useful than a bare status to show the dietitian.
+        const detail = await response.text().catch(() => "");
+
+        throw new Error(
+            `Failed to update allergy preference (${response.status})${
+                detail ? `: ${detail}` : ""
+            }`
+        );
+    }
+
+    const jsonData = await response.json();
+
+    return (jsonData.data ?? jsonData) as UpdateAllergyPrefResponse;
+}
+
+/**
+ * DELETE /api/allergypref/:allergy_preference_id — removes the record outright.
+ *
+ * AllergyPreference has no soft-delete flag, so the row is gone once this
+ * succeeds. Throws on a non-2xx response (including the backend's own message
+ * when it sends one) so the confirm dialog can surface the reason and stay open;
+ * returns the pre-deletion record, unwrapped from the `data` envelope.
+ */
+export async function deleteAllergyPrefApi(
+    allergyPreferenceId: string
+): Promise<DeleteAllergyPrefResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/allergypref/${allergyPreferenceId}`,
+        {
+            method: "DELETE",
+        }
+    );
+
+    if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+
+        throw new Error(
+            `Failed to delete allergy preference (${response.status})${
+                detail ? `: ${detail}` : ""
+            }`
+        );
+    }
+
+    const jsonData = await response.json();
+
+    return (jsonData.data ?? jsonData) as DeleteAllergyPrefResponse;
 }
 
 /** Page size used by the table's pager. */

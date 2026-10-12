@@ -25,13 +25,13 @@ export interface AddItemFormData {
 interface AddItemModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onNext: (data: AddItemFormData) => void;
+    onSubmit: (data: AddItemFormData) => void | Promise<void>;
 }
 
 export default function AddItemModal({
     isOpen,
     onClose,
-    onNext,
+    onSubmit,
 }: AddItemModalProps) {
     const [formData, setFormData] = useState<AddItemFormData>({
         item_name: "",
@@ -43,6 +43,7 @@ export default function AddItemModal({
     });
 
     const [error, setError] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     if (!isOpen) return null;
 
@@ -60,7 +61,7 @@ export default function AddItemModal({
         }
     };
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         if (
@@ -79,7 +80,19 @@ export default function AddItemModal({
             return;
         }
 
-        onNext(formData);
+        setIsSubmitting(true);
+
+        try {
+            await onSubmit(formData);
+        } catch (submitError) {
+            setError(
+                submitError instanceof Error
+                    ? submitError.message
+                    : "Failed to create inventory item."
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -356,16 +369,22 @@ export default function AddItemModal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                            disabled={isSubmitting}
+                            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             Cancel
                         </button>
 
                         <button
                             type="submit"
-                            className="rounded-lg bg-amber-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+                            disabled={isSubmitting}
+                            className="flex items-center gap-2 rounded-lg bg-amber-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            Next
+                            {isSubmitting && (
+                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                            )}
+
+                            {isSubmitting ? "Submitting..." : "Submit"}
                         </button>
                     </div>
                 </form>

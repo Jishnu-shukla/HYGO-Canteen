@@ -1,15 +1,18 @@
 "use client"
 
 import AddBatchModal, { type AddBatchFormData } from "@/components/Inventory/AddBatchModal";
-import AddItemModal from "@/components/Inventory/AddItemModal";
+import AddItemModal, { type AddItemFormData } from "@/components/Inventory/AddItemModal";
+import DeleteConfirmModal from "@/components/Inventory/DeleteConfirmModal";
+import EditBatchModal from "@/components/Inventory/EditBatchModal";
+import EditItemModal from "@/components/Inventory/EditItemModal";
 import InventoryFilters from "@/components/Inventory/InventoryFilters";
 import { InventorySummaryCard } from "@/components/Inventory/InventorySummaryCard";
 import InventoryTable from "@/components/Inventory/InventoryTable";
 import SelectInventoryItemModal from "@/components/Inventory/SelectInventoryItemModal";
 import { useFoodItemContext } from "@/context/FoodItemContext";
-import { createInventoryBatchApi, getInventorySummaryApi } from "@/data/Inventory/api";
+import { createInventoryBatchApi, createInventoryItemApi, deleteInventoryBatchApi, deleteInventoryItemApi, getInventorySummaryApi, updateInventoryItemApi, updateInventoryPreorderApi } from "@/data/Inventory/api";
 import { categories } from "@/data/Inventory/dummyData";
-import { IinventorySummary, InventoryItem } from "@/data/Inventory/type";
+import { IinventorySummary, InventoryBatch, InventoryItem, InventoryTableItem, UpdateInventoryBatchFields, UpdateInventoryFields } from "@/data/Inventory/type";
 import { useEffect, useState } from "react";
 
 export default function Inventory() {
@@ -24,6 +27,18 @@ export default function Inventory() {
         Pick<InventoryItem, "item_id" | "item_name" | "unit_of_measure"> | null
     >(null);
     const [inventorySummary, setInventorySummary] = useState<IinventorySummary | null>(null);
+    const [editingItem, setEditingItem] = useState<InventoryTableItem | null>(null);
+    const [editingBatch, setEditingBatch] = useState<
+        { item: InventoryTableItem; batch: InventoryBatch } | null
+    >(null);
+    const [deletingItem, setDeletingItem] = useState<InventoryTableItem | null>(null);
+    const [deletingBatch, setDeletingBatch] = useState<
+        { item: InventoryTableItem; batch: InventoryBatch } | null
+    >(null);
+    // Pre-order toggle: which row's button is mid-flight, and the last failure
+    // to show above the table.
+    const [poBusyItemId, setPoBusyItemId] = useState<string | null>(null);
+    const [poError, setPoError] = useState("");
     const { items, refreshItems } = useFoodItemContext()
 
     async function getInventorySummary() {
@@ -53,31 +68,137 @@ export default function Inventory() {
         setIsAddBatchModalOpen(true);
     }
 
+    // Creates the inventory item, then hands the freshly created item (with
+    // its server-assigned item_id) straight to the batch form. Errors bubble
+    // up so the modal can show them and stay open.
+    async function handleAddItem(data: AddItemFormData) {
+        const createdItem = await createInventoryItemApi({
+            item_name: data.item_name,
+            category: data.category,
+            unit_of_measure: data.unit_of_measure,
+            stock_type: data.stock_type,
+            threshold_quantity: Number(data.threshold_quantity),
+            storage_location: data.storage_location,
+        });
+
+        setIsAddItemModalOpen(false);
+        refreshItems();
+
+        setSelectedItem({
+            item_id: createdItem?.item_id ?? "",
+            item_name: createdItem?.item_name ?? data.item_name,
+            unit_of_measure:
+                createdItem?.unit_of_measure ?? data.unit_of_measure,
+        });
+        setIsAddBatchModalOpen(true);
+    }
+
     // Submits the batch for the selected item, then re-syncs the inventory
     // list from the API so the fresh batch shows up in the table.
     async function handleAddBatch(data: AddBatchFormData) {
-        if (!selectedItem?.item_id) return;
+        if (!selectedItem?.item_id) {
+            throw new Error("No inventory item selected for this batch.");
+        }
+
+        await createInventoryBatchApi(selectedItem.item_id, {
+            batch_number: data.batch_number,
+            received_date: data.received_date,
+            expiry_date: data.expiry_date,
+            initial_quantity: Number(data.initial_quantity),
+            current_quantity: Number(data.current_quantity),
+            unit_cost: Number(data.unit_cost),
+        });
+
+        setIsAddBatchModalOpen(false);
+        refreshItems();
+    }
+
+    // Updates the inventory item document (PUT /api/inventory/:item_id). Errors
+    // bubble up to the modal so it stays open and shows the message.
+    async function handleEditItem(data: UpdateInventoryFields) {
+        if (!editingItem?.item_id) {
+            throw new Error("No inventory item selected for editing.");
+        }
+
+        await updateInventoryItemApi(editingItem.item_id, { inventory: data });
+
+        setEditingItem(null);
+        refreshItems();
+        getInventorySummary();
+    }
+
+    // Updates a single batch, scoped to its parent item, in one PUT request.
+    async function handleEditBatch(data: UpdateInventoryBatchFields) {
+        if (!editingBatch?.item.item_id) {
+            throw new Error("No inventory item selected for editing.");
+        }
+
+        await updateInventoryItemApi(editingBatch.item.item_id, {
+            batch: data,
+        });
+
+        setEditingBatch(null);
+        refreshItems();
+        getInventorySummary();
+    }
+
+    // Deletes the whole inventory item (and its remaining batches).
+    async function handleDeleteItem() {
+        if (!deletingItem?.item_id) {
+            throw new Error("No inventory item selected for deletion.");
+        }
+
+        await deleteInventoryItemApi(deletingItem.item_id);
+
+        setDeletingItem(null);
+        refreshItems();
+        getInventorySummary();
+    }
+
+    // Deletes a single batch, scoped to its parent item.
+    async function handleDeleteBatch() {
+        if (!deletingBatch?.item.item_id || !deletingBatch.batch.batch_id) {
+            throw new Error("No batch selected for deletion.");
+        }
+
+        await deleteInventoryBatchApi(
+            deletingBatch.item.item_id,
+            deletingBatch.batch.batch_id
+        );
+
+        setDeletingBatch(null);
+        refreshItems();
+        getInventorySummary();
+    }
+
+    // Raises a pre-order, or cancels the existing one. One row at a time via
+    // poBusyItemId, and the list plus the Pre Ordered card both re-sync from
+    // the server so the button and the count never drift.
+    async function handlePOTrigger(item: InventoryTableItem) {
+        if (!item.item_id || poBusyItemId) return;
+
+        setPoBusyItemId(item.item_id);
+        setPoError("");
 
         try {
-            setLoading(true);
-            console.log("Submitting form data with selectedItem id is:", selectedItem);
-            await createInventoryBatchApi(selectedItem.item_id, {
-                batch_number: data.batch_number,
-                received_date: data.received_date,
-                expiry_date: data.expiry_date,
-                initial_quantity: Number(data.initial_quantity),
-                current_quantity: Number(data.current_quantity),
-                unit_cost: Number(data.unit_cost),
+            await updateInventoryPreorderApi(item.item_id, {
+                is_preordered: !item.is_preordered,
             });
-            setIsAddBatchModalOpen(false);
+
             refreshItems();
+            getInventorySummary();
         } catch (error) {
             console.log(error);
+            setPoError(
+                error instanceof Error && error.message
+                    ? error.message
+                    : "Could not update the pre-order status. Please try again."
+            );
         } finally {
-            setLoading(false);
+            setPoBusyItemId(null);
         }
     }
-    
+
     useEffect(() => {
         getInventorySummary()
     }, [])
@@ -133,24 +254,44 @@ export default function Inventory() {
                 selectedCategory={selectedCategory}
                 onCategoryChange={setSelectedCategory}
             />
+
+            {poError && (
+                <div
+                    role="alert"
+                    className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-2.5"
+                >
+                    <p className="text-xs font-medium text-red-600">
+                        {poError}
+                    </p>
+
+                    <button
+                        type="button"
+                        onClick={() => setPoError("")}
+                        className="shrink-0 cursor-pointer rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 transition hover:bg-red-100"
+                    >
+                        Dismiss
+                    </button>
+                </div>
+            )}
+
             <InventoryTable
                 items={items}
+                onEdit={(item) => setEditingItem(item)}
+                onDelete={(item) => setDeletingItem(item)}
+                onEditBatch={(item, batch) =>
+                    setEditingBatch({ item, batch })
+                }
+                onDeleteBatch={(item, batch) =>
+                    setDeletingBatch({ item, batch })
+                }
+                onPOTrigger={handlePOTrigger}
+                poBusyId={poBusyItemId}
             />
 
             <AddItemModal
                 isOpen={isAddItemModalOpen}
                 onClose={() => setIsAddItemModalOpen(false)}
-                onNext={(data) => {
-                    // Carry the freshly defined item into the batch step so the
-                    // form is pre-framed for it (item_id is still empty here —
-                    // the server assigns it, so batch submission waits).
-                    setSelectedItem({
-                        item_id: "",
-                        item_name: data.item_name,
-                        unit_of_measure: data.unit_of_measure,
-                    });
-                    setIsAddBatchModalOpen(true);
-                }}
+                onSubmit={handleAddItem}
             />
 
             {/* A fresh key each time it opens remounts the picker, which
@@ -170,6 +311,46 @@ export default function Inventory() {
                 itemName={selectedItem?.item_name}
                 unitOfMeasure={selectedItem?.unit_of_measure}
             />
+
+            {/* Mounted fresh each time a target is picked, so the form state is
+                initialised from the selected item/batch without an effect. */}
+            {editingItem && (
+                <EditItemModal
+                    item={editingItem}
+                    onClose={() => setEditingItem(null)}
+                    onSubmit={handleEditItem}
+                />
+            )}
+
+            {editingBatch && (
+                <EditBatchModal
+                    batch={editingBatch.batch}
+                    itemName={editingBatch.item.item_name}
+                    unitOfMeasure={editingBatch.item.unit_of_measure}
+                    onClose={() => setEditingBatch(null)}
+                    onSubmit={handleEditBatch}
+                />
+            )}
+
+            {deletingItem && (
+                <DeleteConfirmModal
+                    title="Delete inventory item?"
+                    message={`This will permanently remove ${deletingItem.item_name} and all of its batches. This action cannot be undone.`}
+                    confirmLabel="Delete Item"
+                    onCancel={() => setDeletingItem(null)}
+                    onConfirm={handleDeleteItem}
+                />
+            )}
+
+            {deletingBatch && (
+                <DeleteConfirmModal
+                    title="Delete batch?"
+                    message={`This will permanently remove batch ${deletingBatch.batch.batch_number} from ${deletingBatch.item.item_name}. This action cannot be undone.`}
+                    confirmLabel="Delete Batch"
+                    onCancel={() => setDeletingBatch(null)}
+                    onConfirm={handleDeleteBatch}
+                />
+            )}
         </main>
     )
 }

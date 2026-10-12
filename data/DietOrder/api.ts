@@ -1,12 +1,16 @@
 import { filterCreatedToday } from "@/components/DietOrder/orderStatus";
 import type {
     CreateDietOrderBody,
+    CreateDietOrderResponse,
+    DeleteDietOrderResponse,
     DietOrderPagination,
     DietOrderListItem,
     GetDietOrderSummaryResponse,
     GetDietOrdersQuery,
     GetDietOrdersResponse,
     Patient,
+    UpdateDietOrderBody,
+    UpdateDietOrderResponse,
 } from "./type";
 
 /**
@@ -171,7 +175,9 @@ export async function getTodayDietOrdersApi(): Promise<DietOrderListItem[]> {
  * Throws on a non-2xx response so the form can surface the failure.
  * Returns the created order (unwrapped from the `data` envelope).
  */
-export async function createDietOrderApi(payload: CreateDietOrderBody) {
+export async function createDietOrderApi(
+    payload: CreateDietOrderBody
+): Promise<CreateDietOrderResponse> {
     const response = await fetch(
         "https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder",
         {
@@ -192,5 +198,82 @@ export async function createDietOrderApi(payload: CreateDietOrderBody) {
         );
     }
 
-    return jsonData.data ?? jsonData;
+    return (jsonData.data ?? jsonData) as CreateDietOrderResponse;
+}
+
+/**
+ * PUT /api/dietorder/:order_id — partial update of one order.
+ *
+ * Only the fields present on `payload` are touched, so the edit modal sends just
+ * the values it changed; a free-text field changed to "" clears the stored
+ * value. `order_id` is the business ID (e.g. "ORDER-000001"), resolved by the
+ * backend against order_id rather than the Mongo _id.
+ *
+ * The server re-derives diet_plan_id / master_item_ids whenever scheduled_date
+ * or meal_type changes, so the response may carry a different plan/items than
+ * the request implied.
+ *
+ * Throws on a non-2xx response (including the backend's own message when it
+ * sends one) so the modal can surface the reason and stay open; returns the
+ * updated order, unwrapped from the `data` envelope.
+ */
+export async function updateDietOrderApi(
+    orderId: string,
+    payload: UpdateDietOrderBody
+): Promise<UpdateDietOrderResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder/${orderId}`,
+        {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        }
+    );
+
+    const jsonData = await response.json().catch(() => null);
+
+    if (!response.ok) {
+        throw new Error(
+            jsonData?.message ??
+                `Diet order update failed: ${response.status} ${response.statusText}`
+        );
+    }
+
+    return (jsonData?.data ?? jsonData) as UpdateDietOrderResponse;
+}
+
+/**
+ * DELETE /api/dietorder/:order_id — removes the order outright.
+ *
+ * Unlike setting status to "Cancelled_Order", this erases the record and its
+ * audit trail, so the confirm dialog is the only guard. `order_id` is the
+ * business ID (e.g. "ORDER-000001"), resolved by the backend against order_id
+ * rather than the Mongo _id.
+ *
+ * Throws on a non-2xx response (including the backend's own message when it
+ * sends one) so the confirm dialog can surface the reason and stay open;
+ * returns the pre-deletion order, unwrapped from the `data` envelope.
+ */
+export async function deleteDietOrderApi(
+    orderId: string
+): Promise<DeleteDietOrderResponse> {
+    const response = await fetch(
+        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder/${orderId}`,
+        {
+            method: "DELETE",
+        }
+    );
+
+    const jsonData = await response.json().catch(() => null);
+
+    if (!response.ok) {
+        throw new Error(
+            jsonData?.message ??
+                `Diet order delete failed: ${response.status} ${response.statusText}`
+        );
+    }
+
+    return (jsonData?.data ?? jsonData) as DeleteDietOrderResponse;
 }

@@ -14,7 +14,7 @@ export interface AddBatchFormData {
 interface AddBatchModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: AddBatchFormData) => void;
+    onSubmit: (data: AddBatchFormData) => void | Promise<void>;
     itemName?: string;
     unitOfMeasure?: string;
 }
@@ -44,6 +44,7 @@ export default function AddBatchModal({
     });
 
     const [error, setError] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Reset the form every time the modal is opened.
     useEffect(() => {
@@ -57,6 +58,7 @@ export default function AddBatchModal({
                 unit_cost: "",
             });
             setError("");
+            setIsSubmitting(false);
         }
     }, [isOpen]);
 
@@ -76,7 +78,7 @@ export default function AddBatchModal({
         }
     };
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         if (
@@ -115,7 +117,19 @@ export default function AddBatchModal({
             return;
         }
 
-        onSubmit(formData);
+        setIsSubmitting(true);
+
+        try {
+            await onSubmit(formData);
+        } catch (submitError) {
+            setError(
+                submitError instanceof Error
+                    ? submitError.message
+                    : "Failed to add batch."
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -350,16 +364,22 @@ export default function AddBatchModal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                            disabled={isSubmitting}
+                            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             Cancel
                         </button>
 
                         <button
                             type="submit"
-                            className="rounded-lg bg-amber-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+                            disabled={isSubmitting}
+                            className="flex items-center gap-2 rounded-lg bg-amber-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            Add Batch
+                            {isSubmitting && (
+                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                            )}
+
+                            {isSubmitting ? "Saving..." : "Add Batch"}
                         </button>
                     </div>
                 </form>

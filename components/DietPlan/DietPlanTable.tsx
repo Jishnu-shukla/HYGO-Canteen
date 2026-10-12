@@ -3,6 +3,7 @@ import type {
     DietPlanPagination,
     DietPlanStatus,
 } from "@/data/DietPlan/type";
+import { Ban, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import {
     CONSISTENCY_LABEL,
     DIET_TYPE_LABEL,
@@ -26,13 +27,14 @@ const bodyCell = "px-2 py-2 text-[11px] text-slate-600";
  * because names are the longest value here.
  */
 const COL_WIDTHS = [
-    "15%", // Plan
+    "13%", // Plan
     "15%", // Patient
-    "13%", // Diet type
-    "12%", // Texture
-    "14%", // Liquids
-    "16%", // Period
-    "8%", // Status
+    "12%", // Diet type
+    "11%", // Texture
+    "13%", // Liquids
+    "15%", // Period
+    "9%", // Status
+    "12%", // Actions
 ];
 
 const HEADINGS = [
@@ -43,6 +45,7 @@ const HEADINGS = [
     "Liquids",
     "Period",
     "Status",
+    "Actions",
 ];
 
 /** "2026-10-02T00:00:00.000Z" -> "02 Oct 2026". Falls back to the raw string. */
@@ -85,11 +88,20 @@ export function DietPlanTable({
     loading = false,
     pagination,
     onPageChange,
+    onEdit,
+    onToggleStatus,
+    onDelete,
 }: {
     plans: DietPlanListItem[];
     loading?: boolean;
     pagination?: DietPlanPagination;
     onPageChange?: (page: number) => void;
+    /** Opens the edit modal for a plan. */
+    onEdit?: (plan: DietPlanListItem) => void;
+    /** Asks for confirmation before flipping a plan between Active and Disable. */
+    onToggleStatus?: (plan: DietPlanListItem) => void;
+    /** Asks for confirmation before permanently deleting a plan. */
+    onDelete?: (plan: DietPlanListItem) => void;
 }) {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 0;
@@ -132,7 +144,15 @@ export function DietPlanTable({
                     <thead>
                         <tr className="border-b border-slate-100 bg-slate-50">
                             {HEADINGS.map((heading) => (
-                                <th key={heading} scope="col" className={headCell}>
+                                <th
+                                    key={heading}
+                                    scope="col"
+                                    className={`${headCell} ${
+                                        heading === "Actions"
+                                            ? "text-right"
+                                            : ""
+                                    }`}
+                                >
                                     {heading}
                                 </th>
                             ))}
@@ -161,6 +181,7 @@ export function DietPlanTable({
                         ) : (
                             plans.map((plan) => {
                                 const status = plan.status as DietPlanStatus;
+                                const isDisabled = status === "Disable";
                                 const phase = planPhase(
                                     plan.start_date,
                                     plan.end_date
@@ -251,9 +272,13 @@ export function DietPlanTable({
                                             {/* Status alone does not say
                                                 whether the dates are in
                                                 range, so the phase is
-                                                spelled out beneath it. */}
+                                                spelled out beneath it. A
+                                                retired plan reads "Retired"
+                                                rather than claiming to be in
+                                                force. */}
                                             <p
                                                 className={`truncate text-[9px] font-semibold ${
+                                                    isDisabled ||
                                                     phase === "ended"
                                                         ? "text-slate-400"
                                                         : phase === "upcoming"
@@ -261,8 +286,70 @@ export function DietPlanTable({
                                                           : "text-emerald-600"
                                                 }`}
                                             >
-                                                {PHASE_LABEL[phase]}
+                                                {isDisabled
+                                                    ? "Retired"
+                                                    : PHASE_LABEL[phase]}
                                             </p>
+                                        </td>
+
+                                        <td className={bodyCell}>
+                                            <div className="flex items-center justify-end gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        onEdit?.(plan)
+                                                    }
+                                                    title={`Edit plan ${plan.diet_plan_id}`}
+                                                    aria-label={`Edit plan ${plan.diet_plan_id}`}
+                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-white text-blue-700 transition hover:bg-blue-50"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+
+                                                {/* One button flips the
+                                                    status both ways: a live
+                                                    plan is retired, a retired
+                                                    one is served again. */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        onToggleStatus?.(plan)
+                                                    }
+                                                    title={
+                                                        isDisabled
+                                                            ? `Enable plan ${plan.diet_plan_id}`
+                                                            : `Disable plan ${plan.diet_plan_id}`
+                                                    }
+                                                    aria-label={
+                                                        isDisabled
+                                                            ? `Enable plan ${plan.diet_plan_id}`
+                                                            : `Disable plan ${plan.diet_plan_id}`
+                                                    }
+                                                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border bg-white transition ${
+                                                        isDisabled
+                                                            ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                                            : "border-amber-200 text-amber-700 hover:bg-amber-50"
+                                                    }`}
+                                                >
+                                                    {isDisabled ? (
+                                                        <RotateCcw size={14} />
+                                                    ) : (
+                                                        <Ban size={14} />
+                                                    )}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        onDelete?.(plan)
+                                                    }
+                                                    title={`Delete plan ${plan.diet_plan_id}`}
+                                                    aria-label={`Delete plan ${plan.diet_plan_id}`}
+                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );

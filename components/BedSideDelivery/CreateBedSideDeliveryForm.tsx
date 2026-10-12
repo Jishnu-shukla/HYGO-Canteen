@@ -10,11 +10,11 @@ import type {
     CreateBedSideDeliveryBody,
 } from "@/data/BedSideDelivery/type";
 import {
-    BedSingle,
     CheckCircle2,
     LoaderCircle,
-    Plus,
+    Save,
     TriangleAlert,
+    Utensils,
 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
@@ -54,11 +54,13 @@ function Field({
 }
 
 /**
- * Logs a bedside handover: which tray, how much was eaten, and why food was
- * left if it was.
+ * Records intake for a delivered tray: which order, how much was eaten, and
+ * why food was left if it was.
  *
- * Inline rather than a modal — the meal round is a frequent, repeatable task,
- * so the form stays on screen rather than behind a button.
+ * One of the two handover forms — this is the intake reading, while
+ * ReceiveBedSideDeliveryForm is the bare status write. Inline rather than a
+ * modal, since the meal round is a frequent, repeatable task and the form
+ * stays on screen rather than behind a button.
  */
 export default function CreateBedSideDeliveryForm({
     orders,
@@ -162,15 +164,15 @@ export default function CreateBedSideDeliveryForm({
         <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
-                    <BedSingle size={20} />
+                    <Utensils size={20} />
                 </div>
 
                 <div>
                     <h2 className="text-lg font-semibold text-slate-800">
-                        Log Bedside Delivery
+                        Record Intake
                     </h2>
                     <p className="text-xs text-slate-400">
-                        Record the handover and how much of the tray was eaten.
+                        Record how much of the tray the patient ate.
                     </p>
                 </div>
             </div>
@@ -183,13 +185,12 @@ export default function CreateBedSideDeliveryForm({
                     />
 
                     <p className="text-xs font-medium text-emerald-800">
-                        Delivery logged for{" "}
-                        <span className="font-bold">{created.order_id}</span>{" "}
-                        at{" "}
+                        Intake saved for{" "}
+                        <span className="font-bold">{created.order_id}</span> at{" "}
                         <span className="font-bold">
                             {created.intake_percentage}%
-                        </span>{" "}
-                        intake.
+                        </span>
+                        .
                     </p>
                 </div>
             )}
@@ -308,8 +309,8 @@ export default function CreateBedSideDeliveryForm({
                             </>
                         ) : (
                             <>
-                                <Plus size={16} />
-                                Log Delivery
+                                <Save size={16} />
+                                Save Intake
                             </>
                         )}
                     </button>

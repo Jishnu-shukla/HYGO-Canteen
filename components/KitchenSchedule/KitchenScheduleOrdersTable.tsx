@@ -1,11 +1,15 @@
+"use client";
+
 import type {
-    GetKitchenScheduleOrdersResponse,
     KitchenScheduleOrderRow,
+    KitchenScheduleOrdersPivot,
     KitchenScheduleWardCounts,
 } from "@/data/KitchenSchedule/type";
 import { DIET_TYPE } from "@/data/Menu/type";
 import type { DietType, MealSlot } from "@/data/Menu/type";
-import { Table2 } from "lucide-react";
+import { ChevronRight, Table2 } from "lucide-react";
+import { useState } from "react";
+import MealSlotOrdersModal from "./MealSlotOrdersModal";
 
 /** Every slot the backend can return, in wire order. */
 const MEAL_SLOT_ORDER: MealSlot[] = [
@@ -31,9 +35,12 @@ function totalOrders(counts: KitchenScheduleWardCounts): number {
 export function KitchenScheduleOrdersTable({
     orders,
     loading = false,
+    onOrdersChanged,
 }: {
-    orders: GetKitchenScheduleOrdersResponse | null;
+    orders: KitchenScheduleOrdersPivot | null;
     loading?: boolean;
+    /** Called after a slot's orders move to Ready, so the pivot can refresh. */
+    onOrdersChanged?: () => void;
 }) {
     // Index the sparse pivot so a missing row or cell reads as empty.
     const bySlot = new Map<MealSlot, KitchenScheduleOrderRow>();
@@ -42,8 +49,14 @@ export function KitchenScheduleOrdersTable({
         bySlot.set(row.meal_slot, row);
     }
 
+    /** The slot whose drill-down is open, or null when the grid is at rest. */
+    const [selectedSlot, setSelectedSlot] = useState<MealSlot | null>(null);
+
     const cellFor = (slot: MealSlot, diet: DietType): KitchenScheduleWardCounts =>
         bySlot.get(slot)?.diet_types?.[diet] ?? {};
+
+    /** A slot only owns a pivot row when it has orders to drill into. */
+    const hasOrders = (slot: MealSlot): boolean => bySlot.has(slot);
 
     return (
         <section className="mt-4">
@@ -82,84 +95,136 @@ export function KitchenScheduleOrdersTable({
                         </thead>
 
                         <tbody>
-                            {MEAL_SLOT_ORDER.map((slot) => (
-                                <tr
-                                    key={slot}
-                                    className="odd:bg-white even:bg-slate-50"
-                                >
-                                    <th className="sticky left-0 z-10 border-b border-r border-slate-200 bg-inherit px-3 py-3 text-left align-top">
-                                        <span className="text-sm font-semibold text-slate-700">
-                                            {slot}
-                                        </span>
-                                    </th>
+                            {MEAL_SLOT_ORDER.map((slot) => {
+                                const openable = hasOrders(slot);
 
-                                    {DIET_TYPE.map((diet) => {
-                                        const counts = cellFor(slot, diet);
-                                        const entries = Object.entries(counts);
+                                return (
+                                    <tr
+                                        key={slot}
+                                        onClick={
+                                            openable
+                                                ? () => setSelectedSlot(slot)
+                                                : undefined
+                                        }
+                                        onKeyDown={
+                                            openable
+                                                ? (event) => {
+                                                      if (
+                                                          event.key ===
+                                                              "Enter" ||
+                                                          event.key === " "
+                                                      ) {
+                                                          event.preventDefault();
+                                                          setSelectedSlot(
+                                                              slot
+                                                          );
+                                                      }
+                                                  }
+                                                : undefined
+                                        }
+                                        tabIndex={openable ? 0 : undefined}
+                                        title={
+                                            openable
+                                                ? `View ${slot} orders`
+                                                : "No orders in this slot today"
+                                        }
+                                        className={`odd:bg-white even:bg-slate-50 ${
+                                            openable
+                                                ? "group cursor-pointer transition hover:bg-amber-50/60 focus:outline-none focus-visible:bg-amber-50/70"
+                                                : ""
+                                        }`}
+                                    >
+                                        <th className="sticky left-0 z-10 border-b border-r border-slate-200 bg-inherit px-3 py-3 text-left align-top">
+                                            <span className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-700">
+                                                {slot}
 
-                                        return (
-                                            <td
-                                                key={diet}
-                                                className="border-b border-slate-200 px-3 py-3 align-top"
-                                            >
-                                                {loading ? (
-                                                    <span className="block h-4 w-20 animate-pulse rounded bg-slate-200/70" />
-                                                ) : entries.length === 0 ? (
-                                                    <span className="text-xs text-slate-300">
-                                                        &mdash;
-                                                    </span>
-                                                ) : (
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                                                {entries.length}{" "}
-                                                                ward
-                                                                {entries.length === 1
-                                                                    ? ""
-                                                                    : "s"}
-                                                            </span>
-
-                                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                                                                {totalOrders(
-                                                                    counts
-                                                                )}
-                                                            </span>
-                                                        </div>
-
-                                                        {entries.map(
-                                                            ([ward, count]) => (
-                                                                <div
-                                                                    key={ward}
-                                                                    className="flex items-center justify-between gap-2 rounded-md bg-slate-100 px-2 py-1"
-                                                                >
-                                                                    <span
-                                                                        className="truncate text-xs text-slate-700"
-                                                                        title={
-                                                                            ward
-                                                                        }
-                                                                    >
-                                                                        {ward}
-                                                                    </span>
-
-                                                                    <span className="shrink-0 text-xs font-semibold text-slate-800">
-                                                                        {
-                                                                            count
-                                                                        }
-                                                                    </span>
-                                                                </div>
-                                                            )
-                                                        )}
-                                                    </div>
+                                                {openable && (
+                                                    <ChevronRight
+                                                        size={14}
+                                                        className="text-slate-300 transition group-hover:text-amber-600"
+                                                    />
                                                 )}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
+                                            </span>
+                                        </th>
+
+                                        {DIET_TYPE.map((diet) => {
+                                            const counts = cellFor(slot, diet);
+                                            const entries =
+                                                Object.entries(counts);
+
+                                            return (
+                                                <td
+                                                    key={diet}
+                                                    className="border-b border-slate-200 px-3 py-3 align-top"
+                                                >
+                                                    {loading ? (
+                                                        <span className="block h-4 w-20 animate-pulse rounded bg-slate-200/70" />
+                                                    ) : entries.length === 0 ? (
+                                                        <span className="text-xs text-slate-300">
+                                                            &mdash;
+                                                        </span>
+                                                    ) : (
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                                    {entries.length}{" "}
+                                                                    ward
+                                                                    {entries.length === 1
+                                                                        ? ""
+                                                                        : "s"}
+                                                                </span>
+
+                                                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                                                    {totalOrders(
+                                                                        counts
+                                                                    )}
+                                                                </span>
+                                                            </div>
+
+                                                            {entries.map(
+                                                                ([ward, count]) => (
+                                                                    <div
+                                                                        key={ward}
+                                                                        className="flex items-center justify-between gap-2 rounded-md bg-slate-100 px-2 py-1"
+                                                                    >
+                                                                        <span
+                                                                            className="truncate text-xs text-slate-700"
+                                                                            title={
+                                                                                ward
+                                                                            }
+                                                                        >
+                                                                            {ward}
+                                                                        </span>
+
+                                                                        <span className="shrink-0 text-xs font-semibold text-slate-800">
+                                                                            {
+                                                                                count
+                                                                            }
+                                                                        </span>
+                                                                    </div>
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {selectedSlot && (
+                <MealSlotOrdersModal
+                    key={selectedSlot}
+                    slot={selectedSlot}
+                    onClose={() => setSelectedSlot(null)}
+                    onOrdersChanged={onOrdersChanged}
+                />
+            )}
         </section>
     );
 }

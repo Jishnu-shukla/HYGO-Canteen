@@ -34,12 +34,12 @@ export const CONSISTENCY_LIQUID = [
 export type ConsistencyLiquid = (typeof CONSISTENCY_LIQUID)[number];
 
 /**
- * "Active" is the only status the endpoint documents, and it is the only one
- * the client ever needs: the create body deliberately omits status because the
- * schema defaults it. Extend this const when the re-evaluation flow starts
- * writing other states — nothing in the create path depends on it today.
+ * Plans start "Active" (the schema default, which is why the create body omits
+ * status) and are retired with "Disable": the plan is kept for the record but
+ * stops being served. The status toggle is the only writer of the second
+ * state today, flipping both ways.
  */
-export const DIET_PLAN_STATUS = ["Active"] as const;
+export const DIET_PLAN_STATUS = ["Active", "Disable"] as const;
 export type DietPlanStatus = (typeof DIET_PLAN_STATUS)[number];
 
 /* ------------------------------------------------------------------ *
@@ -201,4 +201,48 @@ export interface CreateDietPlanResponse {
     status: DietPlanStatus;
     /** Staff id of the prescriber, or null until auth middleware exists. */
     prescribed_by: string | null;
+}
+
+/**
+ * PUT /api/dietplan/:diet_plan_id — partial update.
+ *
+ * Every field is optional and omitted fields are left unchanged, so callers
+ * only send what they mean to change. The identity fields are deliberately not
+ * updatable: diet_plan_id is the route param, uhid/patient_id do not move a
+ * plan between patients, patient_name is display-only, and prescribed_by stays
+ * server/auth-owned.
+ */
+export interface UpdateDietPlanBody {
+    /** ISO date string; the server converts it to a Date. */
+    start_date?: string;
+    /** ISO date string, or null to make the plan open-ended. */
+    end_date?: string | null;
+    diet_type?: DietType;
+    texture_modification?: TextureModification;
+    consistencies_liquids?: ConsistencyLiquid;
+    /** "Disable" retires a plan without deleting it. */
+    status?: DietPlanStatus;
+    /**
+     * Replaces the whole withheld-items list (not a merge) when present.
+     * master_item_id business IDs, same rule as CreateDietPlanBody.
+     */
+    disallowed_items_id?: string[];
+}
+
+/**
+ * The plan after the update — the same full-detail shape the create response
+ * returns (prescribed_by included, unlike the list).
+ */
+export type UpdateDietPlanResponse = CreateDietPlanResponse;
+
+/**
+ * DELETE /api/dietplan/:diet_plan_id — removes the plan outright.
+ *
+ * DietPlan has no soft-delete flag, so the row is gone; a plan that should be
+ * kept but retired is better disabled via UpdateDietPlanBody.status. The
+ * response returns the plan as it looked immediately before deletion.
+ */
+export interface DeleteDietPlanResponse {
+    deleted: true;
+    diet_plan: CreateDietPlanResponse;
 }

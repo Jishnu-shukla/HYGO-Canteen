@@ -1,20 +1,27 @@
 "use client";
 
 import { KitchenScheduleSummaryCards } from "@/components/KitchenSchedule/KitchenScheduleSummaryCards";
+import { KitchenSchedulePatientMenus } from "@/components/KitchenSchedule/KitchenSchedulePatientMenus";
 import { MealSlotBreakdown } from "@/components/KitchenSchedule/MealSlotBreakdown";
 import { KitchenScheduleOrdersTable } from "@/components/KitchenSchedule/KitchenScheduleOrdersTable";
+import MenuScheduleProvider, {
+    useMenuScheduleContext,
+} from "@/context/MenuScheduleContext";
 import {
     getKitchenScheduleOrdersApi,
     getKitchenScheduleSummaryApi,
 } from "@/data/KitchenSchedule/api";
 import type {
-    GetKitchenScheduleOrdersResponse,
     GetKitchenScheduleSummaryResponse,
+    KitchenScheduleOrdersPivot,
 } from "@/data/KitchenSchedule/type";
 import { ChefHat } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-export default function KitchenSchedulePage() {
+function KitchenScheduleContent() {
+    const { patientMenus, loading: isMenusLoading } =
+        useMenuScheduleContext();
+
     const [summary, setSummary] = useState<GetKitchenScheduleSummaryResponse | null>(
         null
     );
@@ -22,7 +29,7 @@ export default function KitchenSchedulePage() {
     // Starts true so the mount fetch needs no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
 
-    const [orders, setOrders] = useState<GetKitchenScheduleOrdersResponse | null>(
+    const [orders, setOrders] = useState<KitchenScheduleOrdersPivot | null>(
         null
     );
 
@@ -60,6 +67,24 @@ export default function KitchenSchedulePage() {
         };
 
         load();
+    }, []);
+
+    // Re-reads the pivot after a slot's orders move to Ready, so the per-cell
+    // counts stay in step with the drill-down that changed them. The summary
+    // cards are untouched: marking an order ready does not remove it from
+    // today's schedule.
+    const refreshOrders = useCallback(async () => {
+        const ordersData = await getKitchenScheduleOrdersApi().catch(
+            (error) => {
+                console.log(
+                    "Error fetching kitchen schedule orders:",
+                    error
+                );
+                return null;
+            }
+        );
+
+        setOrders(ordersData);
     }, []);
 
     return (
@@ -101,11 +126,26 @@ export default function KitchenSchedulePage() {
                 loading={isSummaryLoading}
             />
 
+            {/* The patient menus the kitchen cooks from, from MenuScheduleContext */}
+            <KitchenSchedulePatientMenus
+                menus={patientMenus}
+                loading={isMenusLoading}
+            />
+
             {/* meal_slot × diet_type pivot, each cell per-ward counts */}
             <KitchenScheduleOrdersTable
                 orders={orders}
                 loading={isOrdersLoading}
+                onOrdersChanged={refreshOrders}
             />
         </main>
+    );
+}
+
+export default function KitchenSchedulePage() {
+    return (
+        <MenuScheduleProvider>
+            <KitchenScheduleContent />
+        </MenuScheduleProvider>
     );
 }

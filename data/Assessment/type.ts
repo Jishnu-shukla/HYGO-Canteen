@@ -201,3 +201,91 @@ export interface CreateAssessmentResponse {
     /** ISO timestamp. */
     createdAt: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Update
+ * ------------------------------------------------------------------ */
+
+/** Route param: PUT /api/assessments/:assessment_id */
+export interface UpdateAssessmentParams {
+    /**
+     * Business id of the record, e.g. "NA-000001". Optional at the type level
+     * only — the controller's 400 guard enforces presence.
+     */
+    assessment_id?: string;
+}
+
+/**
+ * Partial update of one assessment — every field is optional and omitted fields
+ * are left unchanged. The identity fields are deliberately not updatable:
+ *
+ * - assessment_id  is the route param.
+ * - uhid / patient_id  a record is not reassigned to another patient;
+ *                   file a new assessment instead.
+ * - patient_name   is display-only and never persisted (see
+ *                   CreateAssessmentBody), so it is not accepted here.
+ * - dietitian_id   stays server/auth-owned; accepting it would let a client
+ *                   forge who performed the assessment.
+ *
+ * clinical_notes accepts "" to clear the note, which is what the schema stores
+ * for an unset field. A numeric field is only ever set, never cleared — the body
+ * does not take null. The create-time bounds (>= 0, and the NRS score within
+ * 0-10) are re-enforced by the controller.
+ */
+export interface UpdateAssessmentBody {
+    /** ISO timestamp; the server converts it to a Date. */
+    assessment_date?: string;
+    /** Body weight in kilograms. Must be >= 0. */
+    weight_kg?: number;
+    /** Height in centimetres. Must be >= 0. */
+    height_cm?: number;
+    /** Body mass index, as measured by the client. Must be >= 0. */
+    bmi?: number;
+    /** NRS-2002 score. Must be between 0 and 10 inclusive. */
+    nutritional_risk_score?: number;
+    /** Daily energy target in kcal. Must be >= 0. */
+    daily_caloric_target_kcal?: number;
+    /** Daily protein target in grams. Must be >= 0. */
+    daily_protein_target_g?: number;
+    /** Daily fluid limit in millilitres. Must be >= 0. */
+    fluid_restriction_ml?: number;
+    /** How nutrition is delivered. */
+    route_of_feeding?: RouteOfFeeding;
+    /** Free-text clinician note. "" clears it. */
+    clinical_notes?: string;
+}
+
+/**
+ * The record after the update — the same full-detail shape the create response
+ * returns, with patient_name re-read from Paitent and the audit field as
+ * stored.
+ */
+export type UpdateAssessmentResponse = CreateAssessmentResponse;
+
+/* ------------------------------------------------------------------ *
+ * Delete
+ * ------------------------------------------------------------------ */
+
+/** Route param: DELETE /api/assessments/:assessment_id */
+export interface DeleteAssessmentParams {
+    /**
+     * Business id of the record, e.g. "NA-000001". Optional at the type level
+     * only — the controller's 400 guard enforces presence.
+     */
+    assessment_id?: string;
+}
+
+/**
+ * The record as it looked immediately before deletion, in the same full-detail
+ * shape the create/update responses return, plus a deleted flag so clients can
+ * distinguish a real delete from an empty payload.
+ *
+ * NutritionalAssessment has no soft-delete flag, so the row is removed
+ * outright; a record that should be kept but corrected is better edited via
+ * UpdateAssessmentBody.
+ */
+export interface DeleteAssessmentResponse {
+    deleted: true;
+    /** The removed record. */
+    assessment: CreateAssessmentResponse;
+}

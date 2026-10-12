@@ -3,19 +3,26 @@
 import { AssessmentSummaryCards } from "@/components/Assessment/AssessmentSummaryCards";
 import { AssessmentTable } from "@/components/Assessment/AssessmentTable";
 import CreateAssessmentForm from "@/components/Assessment/CreateAssessmentForm";
+import DeleteAssessmentConfirmModal from "@/components/Assessment/DeleteAssessmentConfirmModal";
+import EditAssessmentModal from "@/components/Assessment/EditAssessmentModal";
 import {
     ASSESSMENT_PAGE_SIZE,
     EMPTY_ASSESSMENT_PAGINATION,
     createAssessmentApi,
+    deleteAssessmentApi,
     getAssessmentSummaryApi,
     getAssessmentsApi,
+    updateAssessmentApi,
 } from "@/data/Assessment/api";
 import type {
     AssessmentListItem,
     AssessmentPagination,
     CreateAssessmentBody,
     CreateAssessmentResponse,
+    DeleteAssessmentResponse,
     GetAssessmentSummaryResponse,
+    UpdateAssessmentBody,
+    UpdateAssessmentResponse,
 } from "@/data/Assessment/type";
 import { ClipboardList } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -34,6 +41,13 @@ export default function AssessmentsPage() {
         EMPTY_ASSESSMENT_PAGINATION
     );
     const [riskFilter, setRiskFilter] = useState<RiskFilterValue>("all");
+
+    /** The row whose edit modal is open, or null when the table is at rest. */
+    const [editing, setEditing] = useState<AssessmentListItem | null>(null);
+
+    /** The row awaiting a delete confirmation, or null when none is pending. */
+    const [assessmentToDelete, setAssessmentToDelete] =
+        useState<AssessmentListItem | null>(null);
 
     // All start true so the mount fetches need no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
@@ -112,6 +126,45 @@ export default function AssessmentsPage() {
         return record;
     };
 
+    // An edit can move a score across the at-risk threshold and reshuffles the
+    // summary, so refresh both the current page and the cards. The page is kept
+    // (not reset to 1) since the record is already on it.
+    const handleUpdateAssessment = async (
+        assessmentId: string,
+        body: UpdateAssessmentBody
+    ): Promise<UpdateAssessmentResponse> => {
+        const record = await updateAssessmentApi(assessmentId, body);
+
+        await Promise.all([fetchTable(pagination.page), fetchSummary()]);
+
+        return record;
+    };
+
+    // Rejects on failure so the confirm dialog can surface the reason and stay
+    // open; closes the dialog only once the row is gone.
+    const handleDeleteAssessment = async (): Promise<DeleteAssessmentResponse> => {
+        if (!assessmentToDelete) {
+            throw new Error("No assessment selected to delete.");
+        }
+
+        const result = await deleteAssessmentApi(
+            assessmentToDelete.assessment_id
+        );
+
+        // Removing the last row on a page would leave it empty, so step back a
+        // page in that case; otherwise reload the page we were on.
+        const targetPage =
+            assessments.length === 1 && pagination.page > 1
+                ? pagination.page - 1
+                : pagination.page;
+
+        await Promise.all([fetchTable(targetPage), fetchSummary()]);
+
+        setAssessmentToDelete(null);
+
+        return result;
+    };
+
     return (
         <main className="min-h-screen w-full bg-slate-50 p-3 md:p-4">
             {/* Header */}
@@ -157,7 +210,28 @@ export default function AssessmentsPage() {
                 riskFilter={riskFilter}
                 onRiskFilterChange={setRiskFilter}
                 onPageChange={fetchTable}
+                onEdit={setEditing}
+                onDelete={setAssessmentToDelete}
             />
+
+            {editing && (
+                <EditAssessmentModal
+                    assessment={editing}
+                    onSubmit={(body) =>
+                        handleUpdateAssessment(editing.assessment_id, body)
+                    }
+                    onClose={() => setEditing(null)}
+                />
+            )}
+
+            {assessmentToDelete && (
+                <DeleteAssessmentConfirmModal
+                    assessmentId={assessmentToDelete.assessment_id}
+                    patientName={assessmentToDelete.patient_name}
+                    onCancel={() => setAssessmentToDelete(null)}
+                    onConfirm={handleDeleteAssessment}
+                />
+            )}
         </main>
     );
 }

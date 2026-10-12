@@ -4,7 +4,7 @@ import type {
     AllergyPrefPagination,
     AllergySeverity,
 } from "@/data/AllergyPref/type";
-import { TriangleAlert } from "lucide-react";
+import { Pencil, Trash2, TriangleAlert } from "lucide-react";
 import {
     SEVERITY_BADGE,
     SEVERITY_LABEL,
@@ -24,11 +24,12 @@ const bodyCell = "px-5 py-2 text-[11px] text-slate-600";
  */
 const COL_WIDTHS = [
     "10%", // Preference
-    "24%", // Patient
-    "14%", // Allergy
-    "12%", // Intolerance
-    "14%", // Severity
-    "13%", // Restriction
+    "19%", // Patient
+    "13%", // Allergy
+    "11%", // Intolerance
+    "13%", // Severity
+    "12%", // Restriction
+    "12%", // Actions
 ];
 
 const HEADINGS = [
@@ -38,6 +39,7 @@ const HEADINGS = [
     "Intolerance",
     "Severity",
     "Restriction",
+    "Actions",
 ];
 
 export function AllergyPrefTable({
@@ -47,6 +49,8 @@ export function AllergyPrefTable({
     severityFilter = "all",
     onSeverityFilterChange,
     onPageChange,
+    onEdit,
+    onDelete,
 }: {
     prefs: AllergyPrefListItem[];
     loading?: boolean;
@@ -55,6 +59,8 @@ export function AllergyPrefTable({
     severityFilter?: AllergySeverity | "all";
     onSeverityFilterChange?: (value: AllergySeverity | "all") => void;
     onPageChange?: (page: number) => void;
+    onEdit?: (pref: AllergyPrefListItem) => void;
+    onDelete?: (pref: AllergyPrefListItem) => void;
 }) {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 0;
@@ -258,6 +264,34 @@ export function AllergyPrefTable({
                                         >
                                             {pref.religious_dietary_restrictions ||
                                                 DASH}
+                                        </td>
+
+                                        <td className={bodyCell}>
+                                            <div className="flex items-center justify-end gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        onEdit?.(pref)
+                                                    }
+                                                    title={`Edit preference ${pref.allergy_preference_id}`}
+                                                    aria-label={`Edit preference ${pref.allergy_preference_id}`}
+                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-white text-blue-700 transition hover:bg-blue-50"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        onDelete?.(pref)
+                                                    }
+                                                    title={`Delete preference ${pref.allergy_preference_id}`}
+                                                    aria-label={`Delete preference ${pref.allergy_preference_id}`}
+                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );

@@ -3,12 +3,16 @@
 import { AllergyPrefSummaryCards } from "@/components/AllergyPref/AllergyPrefSummaryCards";
 import { AllergyPrefTable } from "@/components/AllergyPref/AllergyPrefTable";
 import CreateAllergyPrefForm from "@/components/AllergyPref/CreateAllergyPrefForm";
+import DeleteAllergyPrefConfirmModal from "@/components/AllergyPref/DeleteAllergyPrefConfirmModal";
+import EditAllergyPrefModal from "@/components/AllergyPref/EditAllergyPrefModal";
 import {
     ALLERGY_PREF_PAGE_SIZE,
     EMPTY_ALLERGY_PREF_PAGINATION,
     createAllergyPrefApi,
+    deleteAllergyPrefApi,
     getAllergyPrefSummaryApi,
     getAllergyPrefsApi,
+    updateAllergyPrefApi,
 } from "@/data/AllergyPref/api";
 import type {
     AllergyPrefListItem,
@@ -17,6 +21,8 @@ import type {
     CreateAllergyPrefBody,
     CreateAllergyPrefResponse,
     GetAllergyPrefSummaryResponse,
+    UpdateAllergyPrefBody,
+    UpdateAllergyPrefResponse,
 } from "@/data/AllergyPref/type";
 import { TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -36,6 +42,16 @@ export default function AllergensPage() {
     // Both start true so the mount fetches need no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
     const [isTableLoading, setIsTableLoading] = useState(true);
+
+    // The row under edit, or null when the modal is closed.
+    const [editingPref, setEditingPref] = useState<AllergyPrefListItem | null>(
+        null
+    );
+
+    // The row awaiting delete confirmation, or null when that modal is closed.
+    const [prefToDelete, setPrefToDelete] = useState<AllergyPrefListItem | null>(
+        null
+    );
 
     const fetchSummary = useCallback(async () => {
         try {
@@ -115,6 +131,42 @@ export default function AllergensPage() {
         return record;
     };
 
+    // An edit can flip with_allergens (clearing the last allergy) and the
+    // severity mix, so the cards are refreshed alongside the table. Stay on the
+    // current page: unlike a create, an edit does not reorder the list.
+    const handleUpdate = async (
+        pref: AllergyPrefListItem,
+        payload: UpdateAllergyPrefBody
+    ): Promise<UpdateAllergyPrefResponse> => {
+        const updated = await updateAllergyPrefApi(
+            pref.allergy_preference_id,
+            payload
+        );
+
+        await Promise.all([fetchTable(pagination.page), fetchSummary()]);
+
+        return updated;
+    };
+
+    // Rejects on failure so the confirm dialog can surface the reason and stay
+    // open; closes the dialog only once the row is gone.
+    const handleDelete = async () => {
+        if (!prefToDelete) return;
+
+        await deleteAllergyPrefApi(prefToDelete.allergy_preference_id);
+
+        // Removing the last row on a page would leave it empty, so step back a
+        // page in that case; otherwise reload the page we were on.
+        const targetPage =
+            prefs.length === 1 && pagination.page > 1
+                ? pagination.page - 1
+                : pagination.page;
+
+        await Promise.all([fetchTable(targetPage), fetchSummary()]);
+
+        setPrefToDelete(null);
+    };
+
     return (
         <main className="min-h-screen w-full bg-slate-50 p-3 md:p-4">
             {/* Header */}
@@ -160,7 +212,27 @@ export default function AllergensPage() {
                 severityFilter={severityFilter}
                 onSeverityFilterChange={setSeverityFilter}
                 onPageChange={fetchTable}
+                onEdit={setEditingPref}
+                onDelete={setPrefToDelete}
             />
+
+            {editingPref && (
+                <EditAllergyPrefModal
+                    key={editingPref.allergy_preference_id}
+                    pref={editingPref}
+                    onSubmit={(payload) => handleUpdate(editingPref, payload)}
+                    onClose={() => setEditingPref(null)}
+                />
+            )}
+
+            {prefToDelete && (
+                <DeleteAllergyPrefConfirmModal
+                    prefId={prefToDelete.allergy_preference_id}
+                    patientName={prefToDelete.patient_name}
+                    onCancel={() => setPrefToDelete(null)}
+                    onConfirm={handleDelete}
+                />
+            )}
         </main>
     );
 }
