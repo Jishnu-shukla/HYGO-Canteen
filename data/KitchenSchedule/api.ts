@@ -1,5 +1,7 @@
 import type { MealSlot } from "@/data/Menu/type";
 import type {
+    CreateKitchenScheduleBody,
+    CreateKitchenScheduleResponse,
     GetKitchenScheduleSummaryResponse,
     KitchenScheduleOrdersPivot,
     KitchenScheduleSlotOrders,
@@ -188,4 +190,44 @@ export async function updateKitchenScheduleOrdersReadyApi(
     const jsonData = await response.json().catch(() => null);
 
     return (jsonData?.data ?? jsonData) as UpdateKitchenScheduleOrdersReadyResponse;
+}
+
+/**
+ * POST /api/kitchenschedule — publishes one schedule row for one meal slot at
+ * one moment.
+ *
+ * The body carries `schedule_at` (the moment, an ISO string the server parses
+ * to a Date) and `meal_slot`; schedule_id, shift and the assignment fields are
+ * all server-set (see CreateKitchenScheduleBody). The contract takes a single
+ * meal_slot per row, so scheduling a whole day is one call per selected slot.
+ *
+ * Throws on a non-2xx response (including the backend's own message when it
+ * sends one) so the modal can report exactly which slot failed instead of
+ * claiming the whole day was scheduled. Returns the minted row, unwrapped from
+ * the `data` envelope.
+ */
+export async function createKitchenScheduleApi(
+    body: CreateKitchenScheduleBody
+): Promise<CreateKitchenScheduleResponse> {
+    const response = await fetch(
+        "https://4jzhg556-5000.inc1.devtunnels.ms/api/kitchenschedule",
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!response.ok) {
+        const jsonData = await response.json().catch(() => null);
+
+        throw new Error(
+            jsonData?.message ??
+                `Could not schedule ${body.meal_slot}: ${response.status} ${response.statusText}`
+        );
+    }
+
+    const jsonData = await response.json().catch(() => null);
+
+    return (jsonData?.data ?? jsonData) as CreateKitchenScheduleResponse;
 }

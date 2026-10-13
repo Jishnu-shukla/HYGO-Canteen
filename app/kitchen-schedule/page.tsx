@@ -4,6 +4,7 @@ import { KitchenScheduleSummaryCards } from "@/components/KitchenSchedule/Kitche
 import { KitchenSchedulePatientMenus } from "@/components/KitchenSchedule/KitchenSchedulePatientMenus";
 import { MealSlotBreakdown } from "@/components/KitchenSchedule/MealSlotBreakdown";
 import { KitchenScheduleOrdersTable } from "@/components/KitchenSchedule/KitchenScheduleOrdersTable";
+import ScheduleMealSlotsModal from "@/components/KitchenSchedule/ScheduleMealSlotsModal";
 import MenuScheduleProvider, {
     useMenuScheduleContext,
 } from "@/context/MenuScheduleContext";
@@ -15,7 +16,7 @@ import type {
     GetKitchenScheduleSummaryResponse,
     KitchenScheduleOrdersPivot,
 } from "@/data/KitchenSchedule/type";
-import { ChefHat } from "lucide-react";
+import { CalendarClock, ChefHat } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 function KitchenScheduleContent() {
@@ -34,6 +35,9 @@ function KitchenScheduleContent() {
     );
 
     const [isOrdersLoading, setIsOrdersLoading] = useState(true);
+
+    /** Controls the "Schedule Meal Slots" modal opened from the page header. */
+    const [isScheduleOpen, setIsScheduleOpen] = useState(false);
 
     useEffect(() => {
         // Inlined rather than calling a helper: the set-state-in-effect rule
@@ -112,6 +116,15 @@ function KitchenScheduleContent() {
                         Plan production batches and kitchen manpower per slot.
                     </p>
                 </div>
+
+                <button
+                    type="button"
+                    onClick={() => setIsScheduleOpen(true)}
+                    className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 md:self-auto"
+                >
+                    <CalendarClock size={16} />
+                    Schedule Meal Slots
+                </button>
             </section>
 
             {/* Summary cards */}
@@ -138,6 +151,12 @@ function KitchenScheduleContent() {
                 loading={isOrdersLoading}
                 onOrdersChanged={refreshOrders}
             />
+
+            {isScheduleOpen && (
+                <ScheduleMealSlotsModal
+                    onClose={() => setIsScheduleOpen(false)}
+                />
+            )}
         </main>
     );
 }

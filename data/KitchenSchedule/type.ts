@@ -1,3 +1,4 @@
+import type { FssaiShift } from "@/data/FssaiChecklist/type";
 import type { DietType, MealSlot } from "@/data/Menu/type";
 
 /* ------------------------------------------------------------------ *
@@ -208,4 +209,52 @@ export interface UpdateKitchenScheduleOrdersReadyResponse {
      * status is not a preparation state. Empty when every id was moved.
      */
     skipped_order_ids: string[];
+}
+
+/* ------------------------------------------------------------------ *
+ * POST /api/kitchenschedule
+ * ------------------------------------------------------------------ */
+
+/**
+ * Fields the client owns when publishing a kitchen schedule — just the moment
+ * and the meal slot. Everything else on the row is server-set:
+ * - schedule_id          minted server-side via generateId (a SCHEDULE_ID
+ *                        counter key must be registered; none exists yet).
+ * - master_menu_item_ids left empty (nothing pinned to the schedule).
+ * - assigned_chef_id     left null (unassigned).
+ * - shift                falls back to the schema default, "Morning".
+ * - createdAt / updatedAt  timestamps.
+ */
+export interface CreateKitchenScheduleBody {
+    /**
+     * The moment the schedule is for — the schema stores a single schedule_at
+     * Date. ISO string; the server converts it to a Date. 400 if unparseable.
+     */
+    schedule_at: string;
+    /** Meal to prepare; a MEAL_TYPE value, e.g. "Lunch". */
+    meal_slot: MealSlot;
+}
+
+/**
+ * The created schedule row.
+ *
+ * master_menu_item_ids is empty on a fresh schedule — nothing is pinned at
+ * create time. When populated it holds raw MasterMenuItem ObjectIds (hex
+ * strings once serialized), not business ids.
+ */
+export interface CreateKitchenScheduleResponse {
+    /** Business id minted by the server, e.g. "KS-000001". */
+    schedule_id: string;
+    /** ISO timestamp; echoes the client's schedule_at. */
+    schedule_at: string;
+    meal_slot: MealSlot;
+    /** Raw MasterMenuItem ObjectIds; [] on create. */
+    master_menu_item_ids: string[];
+    /** Raw Staff ObjectId, or null while unassigned. */
+    assigned_chef_id: string | null;
+    shift: FssaiShift;
+    /** ISO timestamp. */
+    createdAt: string;
+    /** ISO timestamp. */
+    updatedAt: string;
 }
