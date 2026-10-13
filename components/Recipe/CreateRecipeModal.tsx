@@ -2,8 +2,25 @@ import { useFoodItemContext } from "@/context/FoodItemContext";
 import { createRecipeApi, getAllRecipesApi } from "@/data/Recipe/api";
 import type { CreateRecipeBody, RecipeItem } from "@/data/Recipe/type";
 import { UNITS } from "@/utils/units";
-import { ChevronDown, LoaderCircle, Plus, X } from "lucide-react";
+import { ChevronDown, LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { Dispatch, FormEvent, useState } from "react";
+
+/**
+ * One editable ingredient row. quantity is held as a string while the user
+ * types (an <input type="number"> gives "" for a transiently empty field) and
+ * converted on submit, so a half-typed value does not read as 0.
+ */
+type IngredientDraft = {
+    item_id: string;
+    quantity: string;
+    unit_of_measure: string;
+};
+
+const EMPTY_INGREDIENT: IngredientDraft = {
+    item_id: "",
+    quantity: "",
+    unit_of_measure: "g",
+};
 
 
 function Field({
@@ -28,9 +45,9 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
     const { items } = useFoodItemContext();
 
     const [recipeName, setRecipeName] = useState("");
-    const [selectedIngredient, setSelectedIngredient] = useState("");
-    const [quantity, setQuantity] = useState("");
-    const [unit, setUnit] = useState("g");
+    const [ingredients, setIngredients] = useState<IngredientDraft[]>([
+        { ...EMPTY_INGREDIENT },
+    ]);
     const [preparationTime, setPreparationTime] = useState("");
     const [nutritionalInfo, setNutritionalInfo] = useState({
         calories: 0,
@@ -49,9 +66,7 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
 
     const resetForm = () => {
         setRecipeName("");
-        setSelectedIngredient("");
-        setQuantity("");
-        setUnit("g");
+        setIngredients([{ ...EMPTY_INGREDIENT }]);
         setPreparationTime("");
         setNutritionalInfo({
             calories: 0,
@@ -67,26 +82,48 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
         setError("");
     };
 
+    const updateIngredient = (
+        index: number,
+        patch: Partial<IngredientDraft>
+    ) => {
+        setIngredients((current) =>
+            current.map((row, rowIndex) =>
+                rowIndex === index ? { ...row, ...patch } : row
+            )
+        );
+    };
+
+    const addIngredient = () => {
+        setIngredients((current) => [...current, { ...EMPTY_INGREDIENT }]);
+    };
+
+    const removeIngredient = (index: number) => {
+        setIngredients((current) =>
+            current.filter((_, rowIndex) => rowIndex !== index)
+        );
+    };
+
+    const isInvalid =
+        recipeName.trim() === "" ||
+        ingredients.length === 0 ||
+        ingredients.some(
+            (row) => row.item_id === "" || Number(row.quantity) <= 0
+        );
+
     const handleCreateRecipe = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const ingredient = items.find(
-            (item) => item.item_id === selectedIngredient
-        );
+        if (isInvalid || saving) return;
 
-        if (!ingredient || !recipeName.trim() || Number(quantity) <= 0) return;
-
-        // recipe_id is minted server-side, and the ingredient goes over as the
+        // recipe_id is minted server-side, and each ingredient goes over as the
         // plain inventory id — the service unwraps either shape.
         const body: CreateRecipeBody = {
             recipe_name: recipeName.trim(),
-            ingredients: [
-                {
-                    item_id: ingredient.item_id,
-                    quantity: Number(quantity),
-                    unit_of_measure: unit,
-                },
-            ],
+            ingredients: ingredients.map((row) => ({
+                item_id: row.item_id,
+                quantity: Number(row.quantity),
+                unit_of_measure: row.unit_of_measure,
+            })),
             preparation_time: Number(preparationTime) || undefined,
             nutritional_info: nutritionalInfo,
             image_url: imageUrl.trim() || null,
@@ -118,11 +155,11 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
-            onMouseDown={() => onClose()}
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4 backdrop-blur-[2px]"
+            onMouseDown={() => !saving && onClose()}
         >
             <div
-                className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                className="my-8 w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
                 onMouseDown={(event) => event.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -131,7 +168,8 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                             Create Recipe
                         </h2>
                         <p className="mt-0.5 text-xs text-slate-400">
-                            Add a recipe using an inventory ingredient.
+                            Build a recipe from one or more inventory
+                            ingredients.
                         </p>
                     </div>
 
@@ -147,7 +185,10 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                     </button>
                 </div>
 
-                <form onSubmit={handleCreateRecipe} className="space-y-4 p-5">
+                <form
+                    onSubmit={handleCreateRecipe}
+                    className="max-h-[70vh] space-y-4 overflow-y-auto p-5"
+                >
                     <Field label="Recipe name">
                         <input
                             required
@@ -158,64 +199,139 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                         />
                     </Field>
 
-                    <Field label="Ingredient from inventory">
-                        <div className="relative">
-                            <select
-                                required
-                                value={selectedIngredient}
-                                onChange={(event) =>
-                                    setSelectedIngredient(event.target.value)
-                                }
-                                className="form-input appearance-none pr-10"
-                            >
-                                <option value="">Select ingredient</option>
-                                {items.map((item) => (
-                                    <option key={item.item_id} value={item.item_id}>
-                                        {item.item_name} —{" "}
-                                    </option>
-                                ))}
-                            </select>
-                            <ChevronDown
-                                size={16}
-                                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                            />
+                    <section>
+                        <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-600">
+                                Ingredients
+                            </span>
+                            <span className="text-xs text-slate-400">
+                                {ingredients.length} selected
+                            </span>
                         </div>
-                    </Field>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Quantity">
-                            <input
-                                required
-                                min="0.01"
-                                step="0.01"
-                                type="number"
-                                value={quantity}
-                                onChange={(event) => setQuantity(event.target.value)}
-                                placeholder="150"
-                                className="form-input"
-                            />
-                        </Field>
-
-                        <Field label="Unit of measure">
-                            <div className="relative">
-                                <select
-                                    value={unit}
-                                    onChange={(event) => setUnit(event.target.value)}
-                                    className="form-input appearance-none pr-10"
-                                >
-                                    {UNITS.map((value) => (
-                                        <option key={value} value={value}>
-                                            {value}
-                                        </option>
-                                    ))}
-                                </select>
-                                <ChevronDown
-                                    size={16}
-                                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                                />
+                        {ingredients.length > 0 && (
+                            <div className="mb-1 flex items-center gap-2 px-2">
+                                <span className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                    Ingredient
+                                </span>
+                                <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                    Quantity
+                                </span>
+                                <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                    Unit
+                                </span>
+                                <span className="w-9 shrink-0" />
                             </div>
-                        </Field>
-                    </div>
+                        )}
+
+                        <div className="space-y-2">
+                            {ingredients.map((row, index) => (
+                                <div
+                                    key={index}
+                                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-2"
+                                >
+                                    <div className="relative min-w-0 flex-1">
+                                        <select
+                                            required
+                                            value={row.item_id}
+                                            disabled={saving}
+                                            aria-label="Ingredient"
+                                            onChange={(event) =>
+                                                updateIngredient(index, {
+                                                    item_id: event.target.value,
+                                                })
+                                            }
+                                            className="form-input appearance-none pr-9"
+                                        >
+                                            <option value="">
+                                                Select ingredient
+                                            </option>
+                                            {items.map((item) => (
+                                                <option
+                                                    key={item.item_id}
+                                                    value={item.item_id}
+                                                >
+                                                    {item.item_name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown
+                                            size={16}
+                                            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                                        />
+                                    </div>
+
+                                    <div className="w-24 shrink-0">
+                                        <input
+                                            required
+                                            min="0.01"
+                                            step="0.01"
+                                            type="number"
+                                            value={row.quantity}
+                                            disabled={saving}
+                                            aria-label="Quantity"
+                                            onChange={(event) =>
+                                                updateIngredient(index, {
+                                                    quantity:
+                                                        event.target.value,
+                                                })
+                                            }
+                                            placeholder="Qty"
+                                            className="form-input"
+                                        />
+                                    </div>
+
+                                    <div className="relative w-24 shrink-0">
+                                        <select
+                                            value={row.unit_of_measure}
+                                            disabled={saving}
+                                            aria-label="Unit of measure"
+                                            onChange={(event) =>
+                                                updateIngredient(index, {
+                                                    unit_of_measure:
+                                                        event.target.value,
+                                                })
+                                            }
+                                            className="form-input appearance-none pr-8"
+                                        >
+                                            {UNITS.map((value) => (
+                                                <option key={value} value={value}>
+                                                    {value}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown
+                                            size={16}
+                                            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            saving || ingredients.length === 1
+                                        }
+                                        onClick={() => removeIngredient(index)}
+                                        aria-label="Remove ingredient"
+                                        title="Remove ingredient"
+                                        className="shrink-0 rounded-lg p-2.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        <Trash2 size={15} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button
+                            type="button"
+                            disabled={saving}
+                            onClick={addIngredient}
+                            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 px-3 py-2.5 text-xs font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-50 disabled:opacity-60"
+                        >
+                            <Plus size={15} />
+                            Add ingredient
+                        </button>
+                    </section>
                     <Field label="Preparation Time (in minutes)">
                         <div className="relative">
                             <input
@@ -407,7 +523,7 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
 
                         <button
                             type="submit"
-                            disabled={saving}
+                            disabled={isInvalid || saving}
                             className="flex items-center gap-1.5 rounded-full bg-blue-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {saving ? (

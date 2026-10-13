@@ -4,6 +4,7 @@ import "./globals.css";
 import FoodItemProvider from "@/context/FoodItemContext";
 import Sidebar from "@/components/Sidebar/Sidebar";
 import AppHeader from "@/components/Header/AppHeader";
+import ToastProvider from "@/components/Toast/ToastProvider";
 import { SIDEBAR_TOGGLE_ID } from "@/routes";
 
 const geistSans = Geist({
@@ -95,6 +96,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               {children}
             </div>
           </div>
+
+          {/* Global toast stack, fed by the API error interceptor. */}
+          <ToastProvider />
         </body>
       </FoodItemProvider>
     </html>
