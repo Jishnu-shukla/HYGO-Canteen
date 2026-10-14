@@ -3,9 +3,9 @@
 import { LogOut, Search, UserCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { ROLES, isRole } from "../../Roles";
+import { useRoleContext } from "../../context/RoleContext";
 import { SIDEBAR_ROUTES } from "../../routes";
-
-const DEFAULT_ROLE = "Dietician";
 
 /**
  * Resolves the sidebar section + page for the current route, so the header
@@ -34,6 +34,7 @@ export default function AppHeader() {
     const { section, page } = findPageContext(pathname);
 
     const [search, setSearch] = useState("");
+    const { role, setRole } = useRoleContext();
 
     const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -82,15 +83,31 @@ export default function AppHeader() {
                         />
                     </form>
 
-                    {/* User profile + role */}
+                    {/* User profile + role picker */}
                     <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 sm:px-3">
                         <UserCircle size={20} className="text-orange-600 sm:size-5" />
-                        <span className="hidden text-xs font-medium text-slate-600 sm:inline">
-                            {DEFAULT_ROLE}
-                        </span>
-                        <span className="text-xs font-medium text-slate-600 sm:hidden">
+
+                        <label htmlFor="role-select" className="sr-only">
                             Role
-                        </span>
+                        </label>
+
+                        <select
+                            id="role-select"
+                            value={role}
+                            onChange={(event) => {
+                                if (isRole(event.target.value)) {
+                                    setRole(event.target.value);
+                                }
+                            }}
+                            title="Role"
+                            className="cursor-pointer rounded-full bg-transparent text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                        >
+                            {ROLES.map((option) => (
+                                <option key={option} value={option}>
+                                    {option}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Logout */}

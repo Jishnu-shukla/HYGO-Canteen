@@ -1,9 +1,14 @@
 import { useFoodItemContext } from "@/context/FoodItemContext";
 import { createRecipeApi, getAllRecipesApi } from "@/data/Recipe/api";
+import {
+    getSpoonacularNutrition,
+    searchSpoonacularRecipes,
+    type SpoonacularSearchResult,
+} from "@/data/Recipe/spoonacular";
 import type { CreateRecipeBody, RecipeItem } from "@/data/Recipe/type";
 import { UNITS } from "@/utils/units";
 import { ChevronDown, LoaderCircle, Plus, Trash2, X } from "lucide-react";
-import { Dispatch, FormEvent, useState } from "react";
+import { Dispatch, FormEvent, useEffect, useRef, useState } from "react";
 
 /**
  * One editable ingredient row. quantity is held as a string while the user
@@ -61,10 +66,33 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
     });
     const [imageUrl, setImageUrl] = useState("");
 
+    // Recipe-name autocomplete, fed by the Spoonacular search proxy.
+    const [suggestions, setSuggestions] = useState<SpoonacularSearchResult[]>([]);
+    const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+    const [searching, setSearching] = useState(false);
+    const [highlighted, setHighlighted] = useState(-1);
+
+    const [nutritionLoading, setNutritionLoading] = useState(false);
+    const [nutritionNotice, setNutritionNotice] = useState("");
+
+    // The recipe picked from the dropdown — its Spoonacular id and image. Kept
+    // so the form can tell a looked-up recipe from a manually typed name.
+    const [selectedRecipe, setSelectedRecipe] = useState<{
+        id: number;
+        imageUrl: string;
+    } | null>(null);
+
+    // Debounce timer plus a sequence stamp, so a slow earlier search cannot
+    // overwrite the results of a later keystroke.
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchSeqRef = useRef(0);
+
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
     const resetForm = () => {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
         setRecipeName("");
         setIngredients([{ ...EMPTY_INGREDIENT }]);
         setPreparationTime("");
@@ -79,6 +107,13 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
             cholestrol: 0,
         });
         setImageUrl("");
+        setSuggestions([]);
+        setSuggestionsOpen(false);
+        setHighlighted(-1);
+        setSearching(false);
+        setNutritionLoading(false);
+        setNutritionNotice("");
+        setSelectedRecipe(null);
         setError("");
     };
 
@@ -102,6 +137,108 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
             current.filter((_, rowIndex) => rowIndex !== index)
         );
     };
+
+    // Cancel a pending debounce when the modal closes. No state is touched
+    // here, so it stays clear of the set-state-in-effect rule.
+    useEffect(() => {
+        return () => {
+            if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        };
+    }, []);
+
+    /**
+     * Typing the recipe name also drives the dropdown. The request is
+     * debounced and stamped with a sequence number: a slow earlier search
+     * cannot overwrite the results of a later keystroke.
+     */
+    function scheduleSearch(value: string) {
+        setRecipeName(value);
+        setSelectedRecipe(null);
+        setNutritionNotice("");
+        setHighlighted(-1);
+
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+        const trimmed = value.trim();
+
+        if (trimmed.length < 3) {
+            searchSeqRef.current += 1; // invalidate any in-flight search
+            setSuggestions([]);
+            setSuggestionsOpen(false);
+            setSearching(false);
+            return;
+        }
+
+        setSearching(true);
+        setSuggestionsOpen(true);
+
+        const seq = searchSeqRef.current + 1;
+        searchSeqRef.current = seq;
+
+        searchTimerRef.current = setTimeout(async () => {
+            const results = await searchSpoonacularRecipes(trimmed);
+
+            if (seq !== searchSeqRef.current) return;
+
+            setSuggestions(results ?? []);
+            setSuggestionsOpen(true);
+            setSearching(false);
+        }, 350);
+    }
+
+    /**
+     * Picking a suggestion fills the name and image, then loads the recipe's
+     * nutrition and drops it into the eight nutrition fields.
+     */
+    async function handleSelectRecipe(result: SpoonacularSearchResult) {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchSeqRef.current += 1; // invalidate any in-flight search
+
+        setRecipeName(result.title);
+        setSuggestions([]);
+        setSuggestionsOpen(false);
+        setHighlighted(-1);
+        setSelectedRecipe({ id: result.id, imageUrl: result.image });
+        setImageUrl(result.image);
+
+        setNutritionLoading(true);
+        setNutritionNotice("");
+
+        const nutrition = await getSpoonacularNutrition(result.id);
+
+        setNutritionLoading(false);
+
+        if (!nutrition) {
+            setNutritionNotice(
+                "Could not load nutrition for this recipe — enter it manually."
+            );
+            return;
+        }
+
+        setNutritionalInfo(nutrition);
+    }
+
+    function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+        if (!suggestionsOpen || suggestions.length === 0) return;
+
+        if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setHighlighted(
+                (current) => (current + 1) % suggestions.length
+            );
+        } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setHighlighted(
+                (current) =>
+                    (current - 1 + suggestions.length) % suggestions.length
+            );
+        } else if (event.key === "Enter" && highlighted >= 0) {
+            event.preventDefault();
+            handleSelectRecipe(suggestions[highlighted]);
+        } else if (event.key === "Escape") {
+            setSuggestionsOpen(false);
+        }
+    }
 
     const isInvalid =
         recipeName.trim() === "" ||
@@ -189,15 +326,122 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                     onSubmit={handleCreateRecipe}
                     className="max-h-[70vh] space-y-4 overflow-y-auto p-5"
                 >
-                    <Field label="Recipe name">
-                        <input
-                            required
-                            value={recipeName}
-                            onChange={(event) => setRecipeName(event.target.value)}
-                            placeholder="e.g. Vegetable Khichdi"
-                            className="form-input"
-                        />
-                    </Field>
+                    <div className="relative">
+                        <label
+                            htmlFor="recipe-name"
+                            className="mb-1.5 block text-xs font-semibold text-slate-600"
+                        >
+                            Recipe name
+                        </label>
+
+                        <div className="relative">
+                            <input
+                                id="recipe-name"
+                                required
+                                autoComplete="off"
+                                value={recipeName}
+                                onChange={(event) =>
+                                    scheduleSearch(event.target.value)
+                                }
+                                onFocus={() => {
+                                    if (suggestions.length > 0) {
+                                        setSuggestionsOpen(true);
+                                    }
+                                }}
+                                onBlur={() =>
+                                    window.setTimeout(
+                                        () => setSuggestionsOpen(false),
+                                        150
+                                    )
+                                }
+                                onKeyDown={handleSearchKeyDown}
+                                placeholder="Search a recipe, e.g. Vegetable Khichdi"
+                                className="form-input pr-10"
+                            />
+
+                            {searching && (
+                                <LoaderCircle
+                                    size={16}
+                                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-slate-400"
+                                />
+                            )}
+                        </div>
+
+                        {suggestionsOpen && (
+                            <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+                                {suggestions.length === 0 ? (
+                                    <p className="px-3 py-2 text-xs text-slate-400">
+                                        {searching
+                                            ? "Searching…"
+                                            : "No recipes found."}
+                                    </p>
+                                ) : (
+                                    suggestions.map((result, index) => (
+                                        <button
+                                            key={result.id}
+                                            type="button"
+                                            // Keep focus so the click lands
+                                            // before the input's blur closes
+                                            // the list.
+                                            onMouseDown={(event) =>
+                                                event.preventDefault()
+                                            }
+                                            onClick={() =>
+                                                handleSelectRecipe(result)
+                                            }
+                                            onMouseEnter={() =>
+                                                setHighlighted(index)
+                                            }
+                                            className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition ${
+                                                highlighted === index
+                                                    ? "bg-amber-50 text-amber-900"
+                                                    : "text-slate-700 hover:bg-slate-50"
+                                            }`}
+                                        >
+                                            <span
+                                                aria-hidden
+                                                className="h-8 w-8 shrink-0 rounded-lg bg-slate-100 bg-cover bg-center"
+                                                style={{
+                                                    backgroundImage: result.image
+                                                        ? `url(${result.image})`
+                                                        : undefined,
+                                                }}
+                                            />
+
+                                            <span className="min-w-0 flex-1 truncate font-medium">
+                                                {result.title}
+                                            </span>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        )}
+
+                        {nutritionLoading && (
+                            <p className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
+                                <LoaderCircle
+                                    size={11}
+                                    className="animate-spin"
+                                />
+                                Loading nutrition…
+                            </p>
+                        )}
+
+                        {!nutritionLoading && nutritionNotice && (
+                            <p className="mt-1 text-[10px] text-amber-600">
+                                {nutritionNotice}
+                            </p>
+                        )}
+
+                        {!nutritionLoading &&
+                            !nutritionNotice &&
+                            selectedRecipe && (
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                    Nutrition and image filled from Spoonacular
+                                    recipe #{selectedRecipe.id}.
+                                </p>
+                            )}
+                    </div>
 
                     <section>
                         <div className="mb-2 flex items-center justify-between">

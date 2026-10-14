@@ -85,8 +85,22 @@ export default function RecipesSection({ search, recipes, handleDeleteRecipe, ha
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex min-w-0 items-center gap-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                                    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-amber-50 text-amber-700">
                                         <ChefHat size={18} />
+
+                                        {/* The recipe image is drawn over the
+                                            icon: a missing or broken URL paints
+                                            nothing, so the ChefHat shows through
+                                            as the default. */}
+                                        {recipe.image_url && (
+                                            <span
+                                                aria-hidden
+                                                className="absolute inset-0 rounded-xl bg-cover bg-center"
+                                                style={{
+                                                    backgroundImage: `url("${recipe.image_url}")`,
+                                                }}
+                                            />
+                                        )}
                                     </div>
                                     <div className="min-w-0">
                                         <h3 className="truncate font-semibold text-slate-800">

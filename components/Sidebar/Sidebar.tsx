@@ -22,7 +22,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SIDEBAR_ROUTES, SIDEBAR_TOGGLE_ID, type RouteItem } from "../../routes";
+import { getAccessibleSections } from "../../Roles";
+import { SIDEBAR_TOGGLE_ID, type RouteItem } from "../../routes";
+import { useRoleContext } from "../../context/RoleContext";
 
 // 1. Map route names to Lucide Icon components
 export const ICON_MAP: Record<string, LucideIcon> = {
@@ -70,6 +72,11 @@ export default function Sidebar({
 }: SidebarProps) {
     const pathname = usePathname();
     const currentPath = activePath ?? pathname ?? "/";
+
+    // Only the active role's routes render, so the sidebar never links to a
+    // screen the guard would block.
+    const { role } = useRoleContext();
+    const sections = getAccessibleSections(role);
 
     const handleClose = () => {
         if (onClose) {
@@ -131,7 +138,7 @@ export default function Sidebar({
             </header>
 
             <nav className="flex-1 pb-6">
-                {SIDEBAR_ROUTES.map((section, sectionIndex) => (
+                {sections.map((section, sectionIndex) => (
                     <section key={section.section}>
                         <h3
                             className={`px-4 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 ${
