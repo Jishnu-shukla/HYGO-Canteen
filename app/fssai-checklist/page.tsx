@@ -2,14 +2,19 @@
 
 import { FssaiChecklistSummaryCards } from "@/components/FssaiChecklist/FssaiChecklistSummaryCards";
 import { FssaiChecklistTable } from "@/components/FssaiChecklist/FssaiChecklistTable";
+import CreateFssaiChecklistModal from "@/components/FssaiChecklist/CreateFssaiChecklistModal";
 import { getFssaiChecklistApi, getFssaiChecklistSummaryApi } from "@/data/FssaiChecklist/api";
 import type { FssaichecklistSummary, GetFssaichecklist } from "@/data/FssaiChecklist/type";
-import { ShieldCheck } from "lucide-react";
+import { showToast } from "@/utils/toast";
+import { Plus, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function FssaiChecklistPage() {
     const [summary, setSummary] = useState<FssaichecklistSummary | null>(null);
     const [checklists, setChecklists] = useState<GetFssaichecklist[]>([]);
+
+    // The "Add Category" modal is mounted only while open, so it starts clean.
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
 
     // Start true so the mount fetches need no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
@@ -40,6 +45,34 @@ export default function FssaiChecklistPage() {
         load();
     }, []);
 
+    /**
+     * Adopts a freshly filed checklist. The list is newest-audit-first, so the
+     * row is inserted ahead of the others and the result re-sorted by
+     * audit_date — a backdated filing then lands where the endpoint would put
+     * it rather than at the top.
+     */
+    async function handleCreated(created: GetFssaichecklist) {
+        setChecklists((previous) =>
+            [created, ...previous].sort(
+                (a, b) =>
+                    new Date(b.audit_date).getTime() -
+                    new Date(a.audit_date).getTime()
+            )
+        );
+
+        showToast({
+            variant: "success",
+            message: `Checklist ${created.checklist_id} filed.`,
+        });
+
+        // The summary aggregates every audit — the latest score and the
+        // passed/failed split — so a new filing changes it. Re-read rather than
+        // recompute client-side.
+        const freshSummary = await getFssaiChecklistSummaryApi();
+
+        if (freshSummary) setSummary(freshSummary);
+    }
+
     return (
         <main className="min-h-screen w-full bg-slate-50 p-3 md:p-4">
             {/* Header */}
@@ -65,6 +98,15 @@ export default function FssaiChecklistPage() {
                         Track audit hygiene scores and check outcomes.
                     </p>
                 </div>
+
+                <button
+                    type="button"
+                    onClick={() => setIsCreateOpen(true)}
+                    className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 md:self-auto"
+                >
+                    <Plus size={16} />
+                    Add Category
+                </button>
             </section>
 
             <FssaiChecklistSummaryCards
@@ -76,6 +118,13 @@ export default function FssaiChecklistPage() {
                 checklists={checklists}
                 loading={isListLoading}
             />
+
+            {isCreateOpen && (
+                <CreateFssaiChecklistModal
+                    onCreated={handleCreated}
+                    onClose={() => setIsCreateOpen(false)}
+                />
+            )}
         </main>
     );
 }

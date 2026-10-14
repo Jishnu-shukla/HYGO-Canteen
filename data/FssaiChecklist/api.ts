@@ -1,6 +1,8 @@
 import type {
+    CreateFssaiChecklistBody,
+    CreateFssaiChecklistResponse,
     FssaichecklistSummary,
-    GetFssaichecklist,
+    GetFssaichecklistResponse,
     UpdateFssaiChecklistStatusBody,
     UpdateFssaiChecklistStatusResponse,
 } from "./type";
@@ -37,7 +39,7 @@ export async function getFssaiChecklistSummaryApi(): Promise<FssaichecklistSumma
  * GET /api/fssaichecklist — every checklist, newest audit first, returned as a
  * bare array under `data` (no pagination envelope).
  */
-export async function getFssaiChecklistApi(): Promise<GetFssaichecklist[] | null> {
+export async function getFssaiChecklistApi(): Promise<GetFssaichecklistResponse | null> {
     try {
         const response = await fetch(
             "https://4jzhg556-5000.inc1.devtunnels.ms/api/fssaichecklist"
@@ -52,7 +54,50 @@ export async function getFssaiChecklistApi(): Promise<GetFssaichecklist[] | null
 
         const jsonData = await response.json();
 
-        return jsonData.data as GetFssaichecklist[];
+        return jsonData.data as GetFssaichecklistResponse;
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
+}
+
+/**
+ * POST /api/fssaichecklist — files one checklist and answers with the created
+ * row (same shape as a GET list entry), so the caller can prepend it without a
+ * second request.
+ *
+ * checklist_id, inspector_id and the initial "Passed" status are minted by the
+ * service; the body carries only the audited category and hygiene score, plus
+ * an optional audit_date and corrective notes. A blank optional field is left
+ * out of the body entirely so the service applies its default.
+ *
+ * Returns the created checklist on success. Null otherwise.
+ */
+export async function createFssaiChecklistApi(
+    body: CreateFssaiChecklistBody
+): Promise<CreateFssaiChecklistResponse | null> {
+    try {
+        const response = await fetch(
+            "https://4jzhg556-5000.inc1.devtunnels.ms/api/fssaichecklist",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(body),
+            }
+        );
+
+        if (!response.ok) {
+            console.log(
+                `createFssaiChecklistApi failed: ${response.status} ${response.statusText}`
+            );
+            return null;
+        }
+
+        const jsonData = await response.json();
+
+        return jsonData.data as CreateFssaiChecklistResponse;
     } catch (error) {
         console.log(error);
         return null;

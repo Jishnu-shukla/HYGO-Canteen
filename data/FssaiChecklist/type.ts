@@ -55,31 +55,13 @@ export interface FssaichecklistSummary {
  * ------------------------------------------------------------------ */
 
 /**
- * One of the 5 audited checks, as returned.
+ * Audit shift.
  *
- * Narrowed to string-literal unions rather than left as plain string, so a
- * mistyped result ("Passed") or an unknown category fails to typecheck
- * instead of reaching the UI.
+ * No longer part of the list read — the response now carries a single free-text
+ * category instead of the five per-check entries — but kept exported because
+ * the kitchen schedule draws its own shift labels from the same vocabulary.
  */
-export type FssaiChecklistCategory =
-    | "cold_storage_temp_ok"
-    | "pest_control_checked"
-    | "water_potability_tested"
-    | "staff_hygiene_compliance"
-    | "expired_goods_removed";
-
-/** Audit shift, recorded on staff_hygiene_compliance only. */
 export type FssaiShift = "Morning" | "Afternoon" | "Evening" | "Night";
-
-/** "Pass" or "Fail" — all five checks share one result type. */
-export type FssaiCategoryResult = "Pass" | "Fail";
-
-export interface FssaiChecklist {
-    category: FssaiChecklistCategory;
-    /** Present on staff_hygiene_compliance only. */
-    shift?: FssaiShift;
-    result: FssaiCategoryResult;
-}
 
 /**
  * One checklist row.
@@ -104,18 +86,22 @@ export interface GetFssaichecklist {
      */
     checklist_id: string;
     /**
-     * Review status, "Passed" by schema default. Part of the row on every
-     * read and on the toggle response — the UI no longer has to track it
-     * client-side.
+     * Workflow state. PUT .../toggle sets it (required) and may also write
+     * corrective_actions_notes from the body's optional notes. Defaults to
+     * "Passed" on creation, so a row leaves Passed only when someone sends
+     * this endpoint a different status.
      */
     status: FssaiChecklistStatus;
-    /** Exactly 5 entries, one per FSSAI check — enforced at write time. */
-    categories: FssaiChecklist[];
+    /**
+     * The category the inspector entered. Free text rather than one of a fixed
+     * set, so a client may send any name it likes.
+     */
+    categories: string;
     /** 0-100, as recorded on the audit. */
     hygiene_score: number;
     /** ISO date string of the audit itself, not of when the row was filed. */
     audit_date: string;
-    /** ISO string; "" when the inspector recorded no corrective action. */
+    /** Free text; "" when the inspector recorded no corrective action. */
     corrective_actions_notes: string;
 }
 
@@ -127,9 +113,58 @@ export interface GetFssaichecklist {
  * checklists are filed once per audit instead of per patient or per meal, so
  * the set stays small enough for the UI to render whole.
  *
- * The HTTP body reads { statusCode, message, data: [...], success } — the
- * same shape GET /api/mastermenu returns.
+ * This is the argument handed to ApiResponse, so the HTTP body reads
+ * { statusCode, message, data: [...], success } — the same shape
+ * GET /api/mastermenu returns.
  */
+export type GetFssaichecklistResponse = GetFssaichecklist[];
+
+/* ------------------------------------------------------------------ *
+ * POST /api/fssaichecklist
+ * ------------------------------------------------------------------ */
+
+/**
+ * Body for creating one checklist.
+ *
+ * The FssaiChecklist document is NOT a mirror of this body. The service owns
+ * every field this interface omits, so a client can neither forge them nor
+ * leave the document invalid:
+ *
+ *   - checklist_id  minted via generateId("FSSAI_CHECKLIST_ID", "FSSAI")
+ *                   ("FSSAI-000001" style) — never client-supplied.
+ *   - inspector_id  a throwaway ObjectId: it is a Staff/User ref that auth
+ *                   middleware will supply, so accepting it today would let a
+ *                   caller forge who filed the audit.
+ *   - status        always starts at "Passed" (the schema default). It is
+ *                   changed only through PUT .../toggle.
+ *   - audit_date    defaults to now when omitted; send it to file an audit for
+ *                   an earlier date.
+ *   - corrective_actions_notes  defaults to "".
+ */
+export interface CreateFssaiChecklistBody {
+    /**
+     * The category audited — free text, any name the client sends rather than
+     * one of a fixed set. Required and non-blank.
+     */
+    categories: string;
+    /** Hygiene score; the schema bounds it to 0-100. Required. */
+    hygiene_score: number;
+    /** ISO date string of the audit itself. Defaults to now when omitted. */
+    audit_date?: string;
+    /** Free-text corrective action. Defaults to "" when omitted. */
+    corrective_actions_notes?: string;
+}
+
+/**
+ * The created checklist — the same row shape GET /api/fssaichecklist returns,
+ * so the list can render it without a second request. Aliased rather than
+ * redeclared so the two contracts cannot drift apart.
+ *
+ * inspector_id is absent for the same reason it is absent from a list row: it
+ * is a raw ObjectId into a users collection that has no name to join to yet,
+ * and the placeholder the service minted carries no meaning to the caller.
+ */
+export type CreateFssaiChecklistResponse = GetFssaichecklist;
 
 /* ------------------------------------------------------------------ *
  * PUT /api/fssaichecklist/:checklist_id/toggle
