@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     CreateDietPlanBody,
     CreateDietPlanResponse,
@@ -20,7 +21,7 @@ import type {
 export async function getDietPlanSummaryApi(): Promise<GetDietPlanSummaryResponse | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/dietplan/summary"
+            `${API_BASE_URL}/dietplan/summary`
         );
 
         if (!response.ok) {
@@ -48,7 +49,7 @@ export async function createDietPlanApi(
     payload: CreateDietPlanBody
 ): Promise<CreateDietPlanResponse> {
     const response = await fetch(
-        "https://4jzhg556-5000.inc1.devtunnels.ms/api/dietplan",
+        `${API_BASE_URL}/dietplan`,
         {
             method: "POST",
             headers: {
@@ -84,7 +85,7 @@ export async function updateDietPlanApi(
     payload: UpdateDietPlanBody
 ): Promise<UpdateDietPlanResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietplan/${dietPlanId}`,
+        `${API_BASE_URL}/dietplan/${dietPlanId}`,
         {
             method: "PUT",
             headers: {
@@ -117,7 +118,7 @@ export async function deleteDietPlanApi(
     dietPlanId: string
 ): Promise<DeleteDietPlanResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietplan/${dietPlanId}`,
+        `${API_BASE_URL}/dietplan/${dietPlanId}`,
         {
             method: "DELETE",
         }
@@ -177,7 +178,7 @@ export async function getDietPlansApi(
 
     try {
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietplan?${params.toString()}`
+            `${API_BASE_URL}/dietplan?${params.toString()}`
         );
 
         if (!response.ok) {

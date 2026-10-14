@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import { filterCreatedToday } from "@/components/DietOrder/orderStatus";
 import type {
     CreateDietOrderBody,
@@ -37,7 +38,7 @@ export async function searchPatientsApi(
     });
 
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder/paitent?${params.toString()}`,
+        `${API_BASE_URL}/dietorder/paitent?${params.toString()}`,
         { signal }
     );
 
@@ -58,7 +59,7 @@ export async function getDietOrderSummaryApi(): Promise<
 > {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder/summary"
+            `${API_BASE_URL}/dietorder/summary`
         );
 
         if (!response.ok) {
@@ -119,7 +120,7 @@ export async function getDietOrdersApi(
 
     try {
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder?${params.toString()}`
+            `${API_BASE_URL}/dietorder?${params.toString()}`
         );
 
         if (!response.ok) {
@@ -179,7 +180,7 @@ export async function createDietOrderApi(
     payload: CreateDietOrderBody
 ): Promise<CreateDietOrderResponse> {
     const response = await fetch(
-        "https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder",
+        `${API_BASE_URL}/dietorder`,
         {
             method: "POST",
             headers: {
@@ -222,7 +223,7 @@ export async function updateDietOrderApi(
     payload: UpdateDietOrderBody
 ): Promise<UpdateDietOrderResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder/${orderId}`,
+        `${API_BASE_URL}/dietorder/${orderId}`,
         {
             method: "PUT",
             headers: {
@@ -260,7 +261,7 @@ export async function deleteDietOrderApi(
     orderId: string
 ): Promise<DeleteDietOrderResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/dietorder/${orderId}`,
+        `${API_BASE_URL}/dietorder/${orderId}`,
         {
             method: "DELETE",
         }

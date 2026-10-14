@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import { READY_STATUS } from "./type";
 import type {
     DispatchOrderResponse,
@@ -15,7 +16,7 @@ import type {
 export async function getMealDispatchSummaryApi(): Promise<MealDispatchSummary | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/mealdispatch/summary"
+            `${API_BASE_URL}/mealdispatch/summary`
         );
 
         if (!response.ok) {
@@ -48,7 +49,7 @@ export async function getMealDispatchSummaryApi(): Promise<MealDispatchSummary |
 export async function getPendingDispatchOrdersApi(): Promise<PendingDispatchOrder[]> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/mealdispatch/pending"
+            `${API_BASE_URL}/mealdispatch/pending`
         );
 
         if (!response.ok) {
@@ -101,7 +102,7 @@ export async function dispatchOrderApi(
     orderId: string
 ): Promise<DispatchOrderResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/mealdispatch/${orderId}/dispatch`,
+        `${API_BASE_URL}/mealdispatch/${orderId}/dispatch`,
         { method: "PUT" }
     );
 

@@ -1,6 +1,8 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
+
 export async function getMasterMenuItemsApi() {
     try {
-        const data = await fetch('https://4jzhg556-5000.inc1.devtunnels.ms/api/mastermenu');
+        const data = await fetch(`${API_BASE_URL}/mastermenu`);
         const jsonData = await data.json();
         console.log(jsonData);
         return jsonData.data;
@@ -21,7 +23,7 @@ export async function updateMasterMenuItemApi(
 ) {
     try {
         const data = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/mastermenu/${master_item_id}`,
+            `${API_BASE_URL}/mastermenu/${master_item_id}`,
             {
                 method: "PUT",
                 headers: {

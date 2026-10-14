@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     AllergyPrefPagination,
     CreateAllergyPrefBody,
@@ -19,7 +20,7 @@ import type {
 export async function getAllergyPrefSummaryApi(): Promise<GetAllergyPrefSummaryResponse | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/allergypref/summary"
+            `${API_BASE_URL}/allergypref/summary`
         );
 
         if (!response.ok) {
@@ -48,7 +49,7 @@ export async function createAllergyPrefApi(
     body: CreateAllergyPrefBody
 ): Promise<CreateAllergyPrefResponse> {
     const response = await fetch(
-        "https://4jzhg556-5000.inc1.devtunnels.ms/api/allergypref",
+        `${API_BASE_URL}/allergypref`,
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -87,7 +88,7 @@ export async function updateAllergyPrefApi(
     payload: UpdateAllergyPrefBody
 ): Promise<UpdateAllergyPrefResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/allergypref/${allergyPreferenceId}`,
+        `${API_BASE_URL}/allergypref/${allergyPreferenceId}`,
         {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -124,7 +125,7 @@ export async function deleteAllergyPrefApi(
     allergyPreferenceId: string
 ): Promise<DeleteAllergyPrefResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/allergypref/${allergyPreferenceId}`,
+        `${API_BASE_URL}/allergypref/${allergyPreferenceId}`,
         {
             method: "DELETE",
         }
@@ -182,7 +183,7 @@ export async function getAllergyPrefsApi(
 
     try {
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/allergypref?${params.toString()}`
+            `${API_BASE_URL}/allergypref?${params.toString()}`
         );
 
         if (!response.ok) {

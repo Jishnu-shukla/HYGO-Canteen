@@ -24,11 +24,20 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## API Backend
 
-All fetch calls target a hardcoded devtunnels URL (`https://4jzhg556-5000.inc1.devtunnels.ms/api/...`). This is a temporary tunnel that changes frequently. To update: search for `devtunnels.ms` across `data/` directory.
+Every fetch goes through `API_BASE_URL` from `data/apiBaseUrl.ts`, which reads
+`NEXT_PUBLIC_API_BASE_URL` from `.env` (the value includes the `/api` prefix).
+Point the app at another backend by changing that one variable — no code edits.
+When the variable is unset the module falls back to the dev tunnel, so local dev
+works without an env file.
+
+- `NEXT_PUBLIC_` is required: the `data/*/api.ts` modules are imported by client
+  components, so the value is inlined into the browser bundle at build time.
+- Deployment: set `NEXT_PUBLIC_API_BASE_URL` in the host's environment (see
+  `.env.example`). It is read at build time, so rebuild after changing it.
 
 ## Gotchas
 
 - `deleteInventoryItemApi` uses HTTP PUT (not DELETE) — matches backend expectation
 - `reactStrictMode: false` in `next.config.ts`
-- No `.env` files — all config is hardcoded
+- Config lives in `.env` (gitignored); `.env.example` documents the variables
 - `data/Inventory/dummyData.ts` has mock/fallback data for development

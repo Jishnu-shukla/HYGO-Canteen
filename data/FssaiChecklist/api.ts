@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     CreateFssaiChecklistBody,
     CreateFssaiChecklistResponse,
@@ -16,7 +17,7 @@ import type {
 export async function getFssaiChecklistSummaryApi(): Promise<FssaichecklistSummary | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/fssaichecklist/summary"
+            `${API_BASE_URL}/fssaichecklist/summary`
         );
 
         if (!response.ok) {
@@ -42,7 +43,7 @@ export async function getFssaiChecklistSummaryApi(): Promise<FssaichecklistSumma
 export async function getFssaiChecklistApi(): Promise<GetFssaichecklistResponse | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/fssaichecklist"
+            `${API_BASE_URL}/fssaichecklist`
         );
 
         if (!response.ok) {
@@ -78,7 +79,7 @@ export async function createFssaiChecklistApi(
 ): Promise<CreateFssaiChecklistResponse | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/fssaichecklist",
+            `${API_BASE_URL}/fssaichecklist`,
             {
                 method: "POST",
                 headers: {
@@ -122,7 +123,7 @@ export async function updateFssaiChecklistStatusApi(
 ): Promise<UpdateFssaiChecklistStatusResponse | null> {
     try {
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/fssaichecklist/${checklist_id}/toggle`,
+            `${API_BASE_URL}/fssaichecklist/${checklist_id}/toggle`,
             {
                 method: "PUT",
                 headers: {

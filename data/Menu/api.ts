@@ -1,6 +1,7 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import { CreateMenuBody, GetMenusQuery, PatientMenuPickItem } from "./type";
 
-const BASE_URL = "https://4jzhg556-5000.inc1.devtunnels.ms/api/menu";
+const BASE_URL = `${API_BASE_URL}/menu`;
 
 /**
  * Serialises a query into the params the backend expects.

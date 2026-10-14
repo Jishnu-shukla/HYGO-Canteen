@@ -78,6 +78,12 @@ export interface CreateBedSideDeliveryBody {
     rejection_reason: string | null;
     /** Free-text note from the nurse or dietician. */
     notes: string | null;
+    /**
+     * Placeholder staff id standing in for the signed-in user until an auth
+     * layer supplies it. Never collected on screen — the form sends the fixed
+     * LOGGED_BY_USER_ID from api.ts.
+     */
+    logged_by_user_id: string;
 }
 
 /**

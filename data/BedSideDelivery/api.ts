@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     BedSideDeliveryOrder,
     BedSideDeliveryRecord,
@@ -25,7 +26,7 @@ export const LOGGED_BY_USER_ID = "000000000000000000000000";
 export async function getBedSideDeliverySummaryApi(): Promise<BedSideDeliverySummary | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/bedsidedelivery/summary"
+            `${API_BASE_URL}/bedsidedelivery/summary`
         );
 
         if (!response.ok) {
@@ -53,7 +54,7 @@ export async function getBedSideDeliverySummaryApi(): Promise<BedSideDeliverySum
 export async function getBedSideDeliveryOrdersApi(): Promise<BedSideDeliveryOrder[]> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/bedsidedelivery/orders"
+            `${API_BASE_URL}/bedsidedelivery/orders`
         );
 
         if (!response.ok) {
@@ -91,7 +92,7 @@ export async function createBedSideDeliveryApi(
     body: CreateBedSideDeliveryBody
 ): Promise<BedSideDeliveryRecord> {
     const response = await fetch(
-        "https://4jzhg556-5000.inc1.devtunnels.ms/api/bedsidedelivery",
+        `${API_BASE_URL}/bedsidedelivery`,
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -129,7 +130,7 @@ export async function receiveBedSideDeliveryApi(
     order_id: string
 ): Promise<ReceiveBedsideDeliveryResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/bedsidedelivery/${order_id}`,
+        `${API_BASE_URL}/bedsidedelivery/${order_id}`,
         { method: "PUT" }
     );
 

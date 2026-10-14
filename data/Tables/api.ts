@@ -1,6 +1,7 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type { AddTableBody, AddTableResponse, TableDetails } from "./type";
 
-const BASE_URL = "https://4jzhg556-5000.inc1.devtunnels.ms/api/table";
+const BASE_URL = `${API_BASE_URL}/table`;
 
 /**
  * Outcome of a table registration.

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     AddTableOrderBody,
     CafeteriaSummary,
@@ -8,7 +9,7 @@ import type {
     UpdateTableOrderResponse,
 } from "./type";
 
-const BASE_URL = "https://4jzhg556-5000.inc1.devtunnels.ms/api/cafeteria";
+const BASE_URL = `${API_BASE_URL}/cafeteria`;
 
 /**
  * GET /api/cafeteria/summary — today's cafeteria POS totals and the current

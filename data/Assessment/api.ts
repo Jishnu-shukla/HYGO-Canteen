@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     AssessmentPagination,
     CreateAssessmentBody,
@@ -19,7 +20,7 @@ import type {
 export async function getAssessmentSummaryApi(): Promise<GetAssessmentSummaryResponse | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/assessments/summary"
+            `${API_BASE_URL}/assessments/summary`
         );
 
         if (!response.ok) {
@@ -48,7 +49,7 @@ export async function createAssessmentApi(
     body: CreateAssessmentBody
 ): Promise<CreateAssessmentResponse> {
     const response = await fetch(
-        "https://4jzhg556-5000.inc1.devtunnels.ms/api/assessments",
+        `${API_BASE_URL}/assessments`,
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -110,7 +111,7 @@ export async function getAssessmentsApi(
 
     try {
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/assessments?${params.toString()}`
+            `${API_BASE_URL}/assessments?${params.toString()}`
         );
 
         if (!response.ok) {
@@ -167,7 +168,7 @@ export async function updateAssessmentApi(
     body: UpdateAssessmentBody
 ): Promise<UpdateAssessmentResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/assessments/${assessmentId}`,
+        `${API_BASE_URL}/assessments/${assessmentId}`,
         {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -206,7 +207,7 @@ export async function deleteAssessmentApi(
     assessmentId: string
 ): Promise<DeleteAssessmentResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/assessments/${assessmentId}`,
+        `${API_BASE_URL}/assessments/${assessmentId}`,
         { method: "DELETE" }
     );
 

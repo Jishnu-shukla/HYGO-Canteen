@@ -1,8 +1,9 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type { CreateRecipeBody, RecipeItem, UpdateRecipeBody } from "./type";
 
 export async function getAllRecipesApi() {
     try {
-        const data = await fetch('https://4jzhg556-5000.inc1.devtunnels.ms/api/recipe');
+        const data = await fetch(`${API_BASE_URL}/recipe`);
         const jsonData = await data.json();
         console.log(jsonData);
         return jsonData.data;
@@ -15,7 +16,7 @@ export async function createRecipeApi(
     recipe: CreateRecipeBody
 ): Promise<RecipeItem | undefined> {
     try {
-        const data = await fetch('https://4jzhg556-5000.inc1.devtunnels.ms/api/recipe', {
+        const data = await fetch(`${API_BASE_URL}/recipe`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -33,7 +34,7 @@ export async function createRecipeApi(
 export async function deleteRecipeApi(recipe_id: string): Promise<boolean> {
     try {
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/recipe/${recipe_id}`,
+            `${API_BASE_URL}/recipe/${recipe_id}`,
             {
                 method: "DELETE"
             }
@@ -63,7 +64,7 @@ export async function updateRecipeApi(
 ): Promise<RecipeItem | undefined> {
     try {
         const data = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/recipe/${recipeId}`,
+            `${API_BASE_URL}/recipe/${recipeId}`,
             {
                 method: "PUT",
                 headers: {

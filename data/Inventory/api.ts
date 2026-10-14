@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import {
     DeleteInventoryQuery,
     GetInventoryQuery,
@@ -63,7 +64,7 @@ export async function getInventoryItemsApi(
 
     try {
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory?${params.toString()}`
+            `${API_BASE_URL}/inventory?${params.toString()}`
         );
         const jsonData = await response.json();
         console.log(jsonData);
@@ -90,7 +91,7 @@ export async function getInventoryItemsApi(
 
 export async function getInventorySummaryApi() {
     try {
-        const data = await fetch('https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory/summary');
+        const data = await fetch(`${API_BASE_URL}/inventory/summary`);
         const jsonData = await data.json();
         console.log(jsonData);
         return jsonData.data;
@@ -101,7 +102,7 @@ export async function getInventorySummaryApi() {
 
 export async function createInventoryItemApi(inventoryItem: addInventoryItem) {
     try {
-        const data = await fetch('https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory', {
+        const data = await fetch(`${API_BASE_URL}/inventory`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -123,7 +124,7 @@ export async function createInventoryItemApi(inventoryItem: addInventoryItem) {
 }
 export async function createInventoryBatchApi(item_id: string, batchItem: addBatchItem) {
     try {
-        const data = await fetch(`https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory/${item_id}/batch`, {
+        const data = await fetch(`${API_BASE_URL}/inventory/${item_id}/batch`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -146,7 +147,7 @@ export async function createInventoryBatchApi(item_id: string, batchItem: addBat
 
 export async function updateInventoryItemApi(item_id: string, body: UpdateInventoryBody) {
     try {
-        const data = await fetch(`https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory/${item_id}`, {
+        const data = await fetch(`${API_BASE_URL}/inventory/${item_id}`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json"
@@ -180,7 +181,7 @@ export async function updateInventoryPreorderApi(
     body: UpdateInventoryPreorderBody
 ): Promise<UpdateInventoryPreorderResponse> {
     try {
-        const data = await fetch(`https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory/${item_id}/po`, {
+        const data = await fetch(`${API_BASE_URL}/inventory/${item_id}/po`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json"
@@ -211,7 +212,7 @@ async function deleteInventoryApi(item_id: string, query: DeleteInventoryQuery) 
             params.set("batch_id", query.batch_id);
         }
 
-        const data = await fetch(`https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory/${item_id}?${params.toString()}`, {
+        const data = await fetch(`${API_BASE_URL}/inventory/${item_id}?${params.toString()}`, {
             method: "DELETE",
         });
         const jsonData = await data.json();

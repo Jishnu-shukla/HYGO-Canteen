@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type { MealSlot } from "@/data/Menu/type";
 import type {
     CreateKitchenScheduleBody,
@@ -20,7 +21,7 @@ import type {
 export async function getKitchenScheduleSummaryApi(): Promise<GetKitchenScheduleSummaryResponse | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/kitchenschedule/summary"
+            `${API_BASE_URL}/kitchenschedule/summary`
         );
 
         if (!response.ok) {
@@ -49,7 +50,7 @@ export async function getKitchenScheduleSummaryApi(): Promise<GetKitchenSchedule
 export async function getKitchenScheduleOrdersApi(): Promise<KitchenScheduleOrdersPivot | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/kitchenschedule/orders"
+            `${API_BASE_URL}/kitchenschedule/orders`
         );
 
         if (!response.ok) {
@@ -87,7 +88,7 @@ export async function getKitchenScheduleSlotOrdersApi(
         const params = new URLSearchParams({ meal_slot: mealSlot });
 
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/kitchenschedule/orders?${params.toString()}`
+            `${API_BASE_URL}/kitchenschedule/orders?${params.toString()}`
         );
 
         if (!response.ok) {
@@ -128,7 +129,7 @@ export async function markKitchenScheduleOrderReadyApi(
     orderId: string
 ): Promise<MarkKitchenScheduleOrderReadyResponse> {
     const response = await fetch(
-        `https://4jzhg556-5000.inc1.devtunnels.ms/api/kitchenschedule/orders/${orderId}/ready`,
+        `${API_BASE_URL}/kitchenschedule/orders/${orderId}/ready`,
         { method: "PUT" }
     );
 
@@ -170,7 +171,7 @@ export async function updateKitchenScheduleOrdersReadyApi(
     orderIds: string[]
 ): Promise<UpdateKitchenScheduleOrdersReadyResponse> {
     const response = await fetch(
-        "https://4jzhg556-5000.inc1.devtunnels.ms/api/kitchenschedule/orders/ready",
+        `${API_BASE_URL}/kitchenschedule/orders/ready`,
         {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -210,7 +211,7 @@ export async function createKitchenScheduleApi(
     body: CreateKitchenScheduleBody
 ): Promise<CreateKitchenScheduleResponse> {
     const response = await fetch(
-        "https://4jzhg556-5000.inc1.devtunnels.ms/api/kitchenschedule",
+        `${API_BASE_URL}/kitchenschedule`,
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },

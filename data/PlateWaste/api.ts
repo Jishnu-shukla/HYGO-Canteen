@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     GetPlateWasteQuery,
     GetPlateWasteResponse,
@@ -15,7 +16,7 @@ import type {
 export async function getPlateWasteSummaryApi(): Promise<PlateWasteInterface | null> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/platewaste/summary"
+            `${API_BASE_URL}/platewaste/summary`
         );
 
         if (!response.ok) {
@@ -43,7 +44,7 @@ export async function getPlateWasteSummaryApi(): Promise<PlateWasteInterface | n
 export async function getPlateWasteDietTypeApi(): Promise<PlateWasteDietType[]> {
     try {
         const response = await fetch(
-            "https://4jzhg556-5000.inc1.devtunnels.ms/api/platewaste/diettype"
+            `${API_BASE_URL}/platewaste/diettype`
         );
 
         if (!response.ok) {
@@ -108,7 +109,7 @@ export async function getPlateWasteApi(
 
     try {
         const response = await fetch(
-            `https://4jzhg556-5000.inc1.devtunnels.ms/api/platewaste?${params.toString()}`
+            `${API_BASE_URL}/platewaste?${params.toString()}`
         );
 
         if (!response.ok) {
