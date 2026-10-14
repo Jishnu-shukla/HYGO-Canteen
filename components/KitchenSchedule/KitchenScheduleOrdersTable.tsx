@@ -17,7 +17,7 @@ const MEAL_SLOT_ORDER: MealSlot[] = [
     "Lunch",
     "Snack",
     "Dinner",
-    "N/A",
+    "General",
 ];
 
 function totalOrders(counts: KitchenScheduleWardCounts): number {

@@ -61,7 +61,7 @@ export function AddTableForm({
     onTableAdded?: (table: AddTableResponse) => void;
 }) {
     const [tableNumber, setTableNumber] = useState("");
-    const [capacity, setCapacity] = useState("");
+    const [capacity, setCapacity] = useState("4");
     const [submitting, setSubmitting] = useState(false);
     const [banner, setBanner] = useState<Banner>(null);
 
@@ -112,7 +112,7 @@ export function AddTableForm({
     function reset() {
         setCreated(null);
         setTableNumber("");
-        setCapacity("");
+        setCapacity("4");
         setBanner(null);
     }
 

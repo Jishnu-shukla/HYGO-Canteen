@@ -8,7 +8,12 @@ export interface InventoryBatch {
     unit_cost: number;
 }
 
-export interface InventoryItem {
+/**
+ * The stored Inventory record, without the batch roll-ups GET /api/inventory
+ * adds. `stock_type` is not persisted: the two stock flags below are, and the
+ * GET derives `stock_type` from them.
+ */
+export interface InventoryRecord {
     item_id: string;
     item_name: string;
     category: string;
@@ -16,8 +21,61 @@ export interface InventoryItem {
     threshold_quantity: number;
     is_preordered: boolean;
     storage_location?: string;
-    stock_type?: "stock_pre_usage" | "stock_post_usage";
+    stock_pre_usage?: boolean;
+    stock_post_usage?: boolean;
+}
+
+/**
+ * GET /api/inventory list row: an InventoryRecord plus the roll-ups
+ * getAll() adds with $addFields.
+ */
+export interface InventoryItem extends InventoryRecord {
+    /** Batches joined on InventoryBatch.item_id -> Inventory._id. */
     batches: InventoryBatch[];
+    /** Sum of the item's batches[].current_quantity. */
+    total_quantity: number;
+    batch_count: number;
+    /** Derived from the stock flags — post-usage wins when set. */
+    stock_type: "stock_post_usage" | "stock_pre_usage";
+}
+
+/* ------------------------------------------------------------------ *
+ * GET /api/inventory
+ * ------------------------------------------------------------------ */
+
+/** GET /api/inventory?page=1&limit=10&search=rice */
+export interface GetInventoryQuery {
+    /** 1-based. Defaults to 1. */
+    page?: number;
+    /** Page size. Defaults to 10, capped at 100. */
+    limit?: number;
+    /**
+     * Case-insensitive substring match on item_name or item_id. A blank or
+     * omitted value searches nothing (every item matches), and the match is
+     * applied before pagination, so pagination.total counts the matches.
+     */
+    search?: string;
+}
+
+/** Page metadata, so the UI can render a pager without a second request. */
+export interface InventoryPagination {
+    page: number;
+    limit: number;
+    /** Total matching rows across all pages. */
+    total: number;
+    total_pages: number;
+}
+
+/**
+ * One page of inventory, newest first, each row carrying its batches.
+ *
+ * data is only the requested page while pagination.total describes the whole
+ * collection, so the UI can render a pager — the same envelope every other
+ * paginated GET (dietorder, dietplan, assessments, platewaste) returns.
+ */
+export interface GetInventoryResponse {
+    data: InventoryItem[];
+    pagination: InventoryPagination;
 }
 
 export interface IinventorySummary {
@@ -35,17 +93,11 @@ export interface IinventorySummary {
 //     expiry: string | Date;
 // }
 
-export interface InventoryTableItem {
-    item_id: string;
-    item_name: string;
-    category: string;
-    unit_of_measure: string;
-    threshold_quantity: number;
-    is_preordered: boolean;
-    storage_location?: string;
-    stock_type?: "stock_pre_usage" | "stock_post_usage";
-    batches: InventoryBatch[];
-}
+/**
+ * Row shape the inventory table and its modals render. That is exactly the GET
+ * list row, so it is aliased rather than duplicated.
+ */
+export type InventoryTableItem = InventoryItem;
 
 //filters
 
@@ -135,7 +187,6 @@ export interface UpdateInventoryPreorderBody {
 
 /**
  * The item after the status change, in the shared InventoryRecord shape the
- * other inventory writes return (no GET batch roll-ups). That shape is what
- * the client already models as InventoryItem.
+ * other inventory writes return (no GET batch roll-ups).
  */
-export type UpdateInventoryPreorderResponse = InventoryItem;
+export type UpdateInventoryPreorderResponse = InventoryRecord;

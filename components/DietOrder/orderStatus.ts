@@ -76,7 +76,7 @@ const DIET_BADGE: { match: string; className: string }[] = [
 
 const DEFAULT_BADGE = "bg-slate-100 text-slate-700";
 
-/** Meal slot chip. Falls back to the diet type when the slot is "N/A". */
+/** Meal slot chip. Falls back to the diet type when the slot is "General". */
 export function mealBadge(value: string | null | undefined) {
     const label = (value ?? "").toUpperCase();
 

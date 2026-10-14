@@ -24,6 +24,15 @@ const inputClass =
 const errorInputClass =
     "border-red-300 bg-red-50/40 focus:border-red-400 focus:ring-red-100";
 
+// Local (not UTC) yyyy-mm-dd, so the <input type="date"> shows the user's today.
+const getToday = () => {
+    const today = new Date();
+
+    return `${today.getFullYear()}-${String(
+        today.getMonth() + 1
+    ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+};
+
 /**
  * The seven numeric clinical fields, described once so validation, hints and
  * layout cannot drift apart. `min`/`max` mirror the documented ranges; a blank
@@ -187,7 +196,7 @@ export default function CreateAssessmentForm({
     onSubmit?: (body: CreateAssessmentBody) => Promise<CreateAssessmentResponse>;
 }) {
     const [patient, setPatient] = useState<Patient | null>(null);
-    const [assessmentDate, setAssessmentDate] = useState("");
+    const [assessmentDate, setAssessmentDate] = useState(getToday());
     const [numeric, setNumeric] = useState<Record<NumericKey, string>>(
         EMPTY_NUMERIC
     );
@@ -228,7 +237,7 @@ export default function CreateAssessmentForm({
 
     const resetForm = () => {
         setPatient(null);
-        setAssessmentDate("");
+        setAssessmentDate(getToday());
         setNumeric(EMPTY_NUMERIC);
         setRoute("");
         setClinicalNotes("");
@@ -351,7 +360,7 @@ export default function CreateAssessmentForm({
 
                 <Field
                     label="Assessment date"
-                    hint="Defaults to now. Pick a date to backdate a record."
+                    hint="Pre-filled with today. Pick another date to backdate a record."
                 >
                     <input
                         type="date"

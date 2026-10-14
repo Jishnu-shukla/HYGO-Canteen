@@ -91,9 +91,13 @@ export default function Sidebar({
         const inactiveStyle =
             "text-slate-600 hover:bg-orange-50 hover:text-orange-900";
 
-        return `${baseStyle} ${
-            currentPath === itemPath ? activeStyle : inactiveStyle
-        }`;
+        // Nested routes keep their section highlighted — /tables/<table_id>
+        // is still the Tables screen. The trailing slash avoids matching a
+        // sibling whose path merely starts with the same text.
+        const isActive =
+            currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+
+        return `${baseStyle} ${isActive ? activeStyle : inactiveStyle}`;
     };
 
     return (

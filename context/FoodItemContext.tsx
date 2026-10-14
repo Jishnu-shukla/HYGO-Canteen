@@ -18,7 +18,7 @@ export default function FoodItemProvider({ children }: { children: React.ReactNo
     async function getInventoryItems() {
         try {
             setLoading(true)
-            const data = await getInventoryItemsApi();
+            const { data } = await getInventoryItemsApi();
             setItems(data);
         } catch (error) {
             console.log(error);

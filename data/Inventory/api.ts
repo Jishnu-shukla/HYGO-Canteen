@@ -1,13 +1,90 @@
-import { DeleteInventoryQuery, UpdateInventoryBody, UpdateInventoryPreorderBody, UpdateInventoryPreorderResponse, addBatchItem, addInventoryItem } from "@/data/Inventory/type";
+import {
+    DeleteInventoryQuery,
+    GetInventoryQuery,
+    GetInventoryResponse,
+    InventoryItem,
+    InventoryPagination,
+    UpdateInventoryBody,
+    UpdateInventoryPreorderBody,
+    UpdateInventoryPreorderResponse,
+    addBatchItem,
+    addInventoryItem,
+} from "@/data/Inventory/type";
 
-export async function getInventoryItemsApi() {
+/** Page size used by the inventory table's pager. */
+export const INVENTORY_PAGE_SIZE = 10;
+
+/**
+ * Page size the shared context requests. The server caps `limit` at 100, so
+ * this pulls every item the batch picker and recipe form are allowed to see,
+ * independent of which page the table is showing.
+ */
+export const INVENTORY_FETCH_LIMIT = 100;
+
+export const EMPTY_INVENTORY_PAGINATION: InventoryPagination = {
+    page: 1,
+    limit: INVENTORY_PAGE_SIZE,
+    total: 0,
+    total_pages: 1,
+};
+
+/**
+ * Builds a single-page fallback when the server sends no `pagination` block,
+ * so the UI degrades to "everything on page 1" instead of empty pages.
+ */
+function fallbackPagination(page: number, limit: number, rowCount: number): InventoryPagination {
+    return { page, limit, total: rowCount, total_pages: 1 };
+}
+
+/**
+ * GET /api/inventory?page=&limit=&search= — newest first, each row carrying
+ * its batches and the total_quantity / batch_count / stock_type roll-ups.
+ *
+ * The paginated response is doubly nested:
+ *   { statusCode, message, success, data: { data: [...], pagination } }
+ * Older/other endpoints put the rows directly on `data`, so both are accepted
+ * to stay tolerant of either shape.
+ */
+export async function getInventoryItemsApi(
+    query: GetInventoryQuery = {}
+): Promise<GetInventoryResponse> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? INVENTORY_FETCH_LIMIT;
+
+    const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+    });
+
+    const search = query.search?.trim();
+    if (search) {
+        params.set("search", search);
+    }
+
     try {
-        const data = await fetch('https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory');
-        const jsonData = await data.json();
+        const response = await fetch(
+            `https://4jzhg556-5000.inc1.devtunnels.ms/api/inventory?${params.toString()}`
+        );
+        const jsonData = await response.json();
         console.log(jsonData);
-        return jsonData.data;
+
+        const payload = jsonData?.data;
+        const rows: InventoryItem[] = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : [];
+
+        const pagination: InventoryPagination =
+            payload?.pagination &&
+            typeof payload.pagination.total_pages === "number"
+                ? payload.pagination
+                : fallbackPagination(page, limit, rows.length);
+
+        return { data: rows, pagination };
     } catch (error) {
         console.log(error);
+        return { data: [], pagination: fallbackPagination(page, limit, 0) };
     }
 } 
 

@@ -15,7 +15,7 @@ export const MEAL_TYPE = [
     "Lunch",
     "Snack",
     "Dinner",
-    "N/A",
+    "General",
 ] as const;
 export type MealSlot = (typeof MEAL_TYPE)[number];
 

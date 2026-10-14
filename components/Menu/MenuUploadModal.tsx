@@ -12,6 +12,7 @@ import {
     MenuDay,
     PAITENTMENU_DAYS,
 } from "@/data/Menu/type";
+import type { MasterMenuItem } from "@/data/MasterMenu/type";
 import { LoaderCircle, Plus, X } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -35,6 +36,15 @@ function Field({
 const inputClass =
     "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:border-amber-300 focus:bg-white focus:ring-2 focus:ring-amber-100 disabled:opacity-60";
 
+// Local (not UTC) yyyy-mm-dd, so the <input type="date"> shows the user's today.
+const getToday = () => {
+    const today = new Date();
+
+    return `${today.getFullYear()}-${String(
+        today.getMonth() + 1
+    ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+};
+
 export default function MenuUploadModal({
     menuType,
     onClose,
@@ -56,8 +66,8 @@ export default function MenuUploadModal({
     const [sellingPrices, setSellingPrices] = useState<Record<string, string>>({});
     const [isAvailable, setIsAvailable] = useState(true);
     const [mealSlot, setMealSlot] = useState<MealSlot>("Breakfast");
-    const [days, setDays] = useState<MenuDay[]>([]);
-    const [date, setDate] = useState("");
+    const [days, setDays] = useState<MenuDay[]>([...PAITENTMENU_DAYS]);
+    const [date, setDate] = useState(getToday());
     const [dietType, setDietType] = useState<DietType>("Normal");
     const [portionSize, setPortionSize] = useState("");
     const [saving, setSaving] = useState(false);
@@ -73,12 +83,22 @@ export default function MenuUploadModal({
         );
     };
 
-    const toggleItem = (id: string) => {
+    const toggleItem = (item: MasterMenuItem) => {
+        const id = item.master_item_id;
+
         setSelectedIds((current) =>
             current.includes(id)
                 ? current.filter((existing) => existing !== id)
                 : [...current, id]
         );
+
+        // Seed the selling price from the item's base price so the field is
+        // filled in as soon as the item is picked; the user can still
+        // override it before uploading.
+        setSellingPrices((current) => ({
+            ...current,
+            [id]: current[id] ?? String(item.price),
+        }));
     };
 
     const selectedCount = selectedIds.length;
@@ -318,7 +338,7 @@ export default function MenuUploadModal({
                                                 type="checkbox"
                                                 checked={isSelected}
                                                 disabled={saving}
-                                                onChange={() => toggleItem(item.master_item_id)}
+                                                onChange={() => toggleItem(item)}
                                                 className="h-4 w-4 shrink-0 accent-amber-600"
                                                 aria-label={`Select ${item.recipe_name}`}
                                             />

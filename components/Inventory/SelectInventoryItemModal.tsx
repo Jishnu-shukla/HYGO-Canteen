@@ -13,6 +13,10 @@ interface SelectInventoryItemModalProps {
 
 /** Total stock currently on hand for an item, across all of its batches. */
 function getTotalStock(item: InventoryItem): number {
+    if (typeof item.total_quantity === "number") {
+        return item.total_quantity;
+    }
+
     return (item.batches ?? []).reduce(
         (total, batch) =>
             total +

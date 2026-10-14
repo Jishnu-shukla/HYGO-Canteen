@@ -10,16 +10,17 @@ import { InventorySummaryCard } from "@/components/Inventory/InventorySummaryCar
 import InventoryTable from "@/components/Inventory/InventoryTable";
 import SelectInventoryItemModal from "@/components/Inventory/SelectInventoryItemModal";
 import { useFoodItemContext } from "@/context/FoodItemContext";
-import { createInventoryBatchApi, createInventoryItemApi, deleteInventoryBatchApi, deleteInventoryItemApi, getInventorySummaryApi, updateInventoryItemApi, updateInventoryPreorderApi } from "@/data/Inventory/api";
+import { EMPTY_INVENTORY_PAGINATION, INVENTORY_PAGE_SIZE, createInventoryBatchApi, createInventoryItemApi, deleteInventoryBatchApi, deleteInventoryItemApi, getInventoryItemsApi, getInventorySummaryApi, updateInventoryItemApi, updateInventoryPreorderApi } from "@/data/Inventory/api";
 import { categories } from "@/data/Inventory/dummyData";
-import { IinventorySummary, InventoryBatch, InventoryItem, InventoryTableItem, UpdateInventoryBatchFields, UpdateInventoryFields } from "@/data/Inventory/type";
-import { useEffect, useState } from "react";
+import { IinventorySummary, InventoryBatch, InventoryItem, InventoryPagination, InventoryTableItem, UpdateInventoryBatchFields, UpdateInventoryFields } from "@/data/Inventory/type";
+import { useCallback, useEffect, useState } from "react";
 
 export default function Inventory() {
 
     const [loading, setLoading] = useState(false);
 
     const [selectedCategory, setSelectedCategory] = useState(categories[0].name);
+    const [search, setSearch] = useState("");
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
     const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
     const [isSelectItemModalOpen, setIsSelectItemModalOpen] = useState(false);
@@ -39,7 +40,66 @@ export default function Inventory() {
     // to show above the table.
     const [poBusyItemId, setPoBusyItemId] = useState<string | null>(null);
     const [poError, setPoError] = useState("");
-    const { items, refreshItems } = useFoodItemContext()
+    const { items, refreshItems: refreshContextItems } = useFoodItemContext()
+
+    // The table holds its own server-paginated slice, independent of the
+    // context's broader item list (which feeds the batch picker and recipes).
+    const [tableItems, setTableItems] = useState<InventoryItem[]>([]);
+    const [pagination, setPagination] = useState<InventoryPagination>(
+        EMPTY_INVENTORY_PAGINATION
+    );
+    const [page, setPage] = useState(1);
+    const [isTableLoading, setIsTableLoading] = useState(true);
+
+    // Loads one server page of inventory for the table. Returns the resolved
+    // pagination so callers can react to row counts changing.
+    const fetchInventoryPage = useCallback(
+        async (
+            targetPage: number,
+            targetSearch: string
+        ): Promise<InventoryPagination> => {
+            try {
+                setIsTableLoading(true);
+
+                const { data, pagination: meta } = await getInventoryItemsApi({
+                    page: targetPage,
+                    limit: INVENTORY_PAGE_SIZE,
+                    search: targetSearch,
+                });
+
+                setTableItems(data);
+                setPagination(meta);
+
+                return meta;
+            } catch (error) {
+                console.log(error);
+                return EMPTY_INVENTORY_PAGINATION;
+            } finally {
+                setIsTableLoading(false);
+            }
+        },
+        []
+    );
+
+    // Re-syncs the table's current page and the context list (which feeds the
+    // batch picker and recipes) after any inventory mutation. Steps back a page
+    // when the delete left the current page empty.
+    async function refreshInventory() {
+        refreshContextItems();
+
+        const meta = await fetchInventoryPage(page, search);
+
+        if (meta.total_pages > 0 && page > meta.total_pages) {
+            const lastPage = meta.total_pages;
+            setPage(lastPage);
+            fetchInventoryPage(lastPage, search);
+        }
+    }
+
+    function handlePageChange(nextPage: number) {
+        setPage(nextPage);
+        fetchInventoryPage(nextPage, search);
+    }
 
     async function getInventorySummary() {
         try {
@@ -82,7 +142,7 @@ export default function Inventory() {
         });
 
         setIsAddItemModalOpen(false);
-        refreshItems();
+        refreshInventory();
 
         setSelectedItem({
             item_id: createdItem?.item_id ?? "",
@@ -110,7 +170,7 @@ export default function Inventory() {
         });
 
         setIsAddBatchModalOpen(false);
-        refreshItems();
+        refreshInventory();
     }
 
     // Updates the inventory item document (PUT /api/inventory/:item_id). Errors
@@ -123,7 +183,7 @@ export default function Inventory() {
         await updateInventoryItemApi(editingItem.item_id, { inventory: data });
 
         setEditingItem(null);
-        refreshItems();
+        refreshInventory();
         getInventorySummary();
     }
 
@@ -138,7 +198,7 @@ export default function Inventory() {
         });
 
         setEditingBatch(null);
-        refreshItems();
+        refreshInventory();
         getInventorySummary();
     }
 
@@ -151,7 +211,7 @@ export default function Inventory() {
         await deleteInventoryItemApi(deletingItem.item_id);
 
         setDeletingItem(null);
-        refreshItems();
+        refreshInventory();
         getInventorySummary();
     }
 
@@ -167,7 +227,7 @@ export default function Inventory() {
         );
 
         setDeletingBatch(null);
-        refreshItems();
+        refreshInventory();
         getInventorySummary();
     }
 
@@ -185,7 +245,7 @@ export default function Inventory() {
                 is_preordered: !item.is_preordered,
             });
 
-            refreshItems();
+            refreshInventory();
             getInventorySummary();
         } catch (error) {
             console.log(error);
@@ -202,6 +262,20 @@ export default function Inventory() {
     useEffect(() => {
         getInventorySummary()
     }, [])
+
+    // The table fetch doubles as the mount load and the debounced server-side
+    // search: a new query resets the table to page 1.
+    useEffect(() => {
+        const handle = setTimeout(
+            () => {
+                setPage(1);
+                fetchInventoryPage(1, search);
+            },
+            search ? 300 : 0
+        );
+
+        return () => clearTimeout(handle);
+    }, [search, fetchInventoryPage])
     
 
     return (
@@ -253,6 +327,8 @@ export default function Inventory() {
                 categories={categories}
                 selectedCategory={selectedCategory}
                 onCategoryChange={setSelectedCategory}
+                search={search}
+                onSearchChange={setSearch}
             />
 
             {poError && (
@@ -275,7 +351,10 @@ export default function Inventory() {
             )}
 
             <InventoryTable
-                items={items}
+                items={tableItems}
+                loading={isTableLoading}
+                pagination={pagination}
+                onPageChange={handlePageChange}
                 onEdit={(item) => setEditingItem(item)}
                 onDelete={(item) => setDeletingItem(item)}
                 onEditBatch={(item, batch) =>

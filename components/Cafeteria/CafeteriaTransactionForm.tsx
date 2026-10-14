@@ -14,7 +14,7 @@ import type {
 } from "@/data/Cafeteria/type";
 import { getMenusApi } from "@/data/Menu/api";
 import type { GeneralMenu } from "@/data/Menu/type";
-import { Plus, Trash2 } from "lucide-react";
+import { Download, Plus, Printer, Trash2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 const inputClass =
@@ -22,6 +22,19 @@ const inputClass =
 
 const labelClass =
     "mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500";
+
+/** Escapes text destined for the generated bill document. */
+function escapeHtml(value: string): string {
+    const entities: Record<string, string> = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+    };
+
+    return value.replace(/[&<>"']/g, (char) => entities[char] ?? char);
+}
 
 type OrderLine = {
     key: number;
@@ -309,11 +322,120 @@ export function CafeteriaTransactionForm({
                 kind: "success",
                 text: "Transaction updated successfully.",
             });
+
+            // The bill is settled: drop the completed tab and every entered
+            // value so the next customer starts from a blank form instead of
+            // seeing the previous order still filled in.
+            setTabData(null);
+            setTableNumber("");
+            setLines([emptyLine(0)]);
+            setCustomerType("Visitor");
+            setCustomerName("");
+            setDiscountApplied("0");
+            setPaymentMode("Cash");
+            setPaymentStatus("Pending");
+
             onUpdated?.();
         } else {
             setBanner({ kind: "error", text: result.error });
         }
     };
+
+    /**
+     * Opens a print-ready copy of the current bill in its own window and
+     * triggers the browser's print dialog. From there the cashier can print a
+     * paper copy or choose "Save as PDF" as the destination — the same pattern
+     * the QR preview uses.
+     */
+    function openBillPrint() {
+        if (!tabData) return;
+
+        const win = window.open("", "_blank", "width=900,height=700");
+
+        if (!win) {
+            setBanner({
+                kind: "error",
+                text: "Pop-up blocked — allow pop-ups for this site to print the bill.",
+            });
+            return;
+        }
+
+        const safeDiscount = Number.isFinite(discount) ? discount : 0;
+        const safeTotal = Number.isFinite(total) ? total : subtotal - safeDiscount;
+
+        const rows = lines
+            .map((line) => {
+                const name = escapeHtml(
+                    line.recipe_name || line.item_id || "Item"
+                );
+                const quantity = Number(line.quantity);
+                const price = Number(line.price_at_sale);
+                const amount =
+                    Number.isFinite(quantity) && Number.isFinite(price)
+                        ? quantity * price
+                        : 0;
+
+                return `<tr>
+                    <td>${name}</td>
+                    <td class="num">${escapeHtml(line.quantity || "0")}</td>
+                    <td class="num">₹${
+                        Number.isFinite(price)
+                            ? price.toLocaleString("en-IN")
+                            : "0"
+                    }</td>
+                    <td class="num">₹${amount.toLocaleString("en-IN")}</td>
+                </tr>`;
+            })
+            .join("");
+
+        const tableNumberText = escapeHtml(tabData.table_number);
+        const tableIdText = escapeHtml(tabData.table_id);
+        const customerText = escapeHtml(customerName.trim() || "—");
+
+        win.document.write(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Cafeteria Bill — ${tableNumberText}</title>
+<style>
+    body { font-family: system-ui, sans-serif; color: #0f172a; padding: 32px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .muted { color: #64748b; font-size: 12px; margin: 2px 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+    .num { text-align: right; }
+    .totals { margin-top: 16px; width: 260px; margin-left: auto; }
+    .totals div { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+    .totals .grand { font-weight: 700; font-size: 15px; border-top: 1px solid #e2e8f0; margin-top: 4px; padding-top: 8px; }
+    @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+    <h1>Cafeteria Bill</h1>
+    <p class="muted">Table ${tableNumberText} (${tableIdText})</p>
+    <p class="muted">Customer: ${escapeHtml(customerType)} — ${customerText}</p>
+    <p class="muted">Printed: <span id="printed-at"></span></p>
+    <table>
+        <thead>
+            <tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>
+    <div class="totals">
+        <div><span>Subtotal</span><span>₹${subtotal.toLocaleString("en-IN")}</span></div>
+        <div><span>Discount</span><span>₹${safeDiscount.toLocaleString("en-IN")}</span></div>
+        <div class="grand"><span>Total</span><span>₹${safeTotal.toLocaleString("en-IN")}</span></div>
+    </div>
+    <p class="muted" style="margin-top:24px;">Payment mode: ${escapeHtml(paymentMode)}</p>
+    <script>document.getElementById("printed-at").textContent = new Date().toLocaleString("en-IN");</script>
+</body>
+</html>`);
+
+        win.document.close();
+        win.focus();
+        window.setTimeout(() => win.print(), 250);
+    }
 
     return (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -350,6 +472,21 @@ export function CafeteriaTransactionForm({
                     </button>
                 </div>
             </form> */}
+
+            {/* Rendered outside the form so the "completed" confirmation still
+                shows after the settled tab (and the form) is cleared. */}
+            {banner && (
+                <p
+                    className={`mx-4 mt-4 rounded-lg border px-3 py-2 text-xs font-medium ${
+                        banner.kind === "success"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-red-200 bg-red-50 text-red-700"
+                    }`}
+                    role="status"
+                >
+                    {banner.text}
+                </p>
+            )}
 
             {tabData && (
                 <form onSubmit={handleSubmit} className="px-4 py-4">
@@ -591,20 +728,23 @@ export function CafeteriaTransactionForm({
                         </div>
                     </div>
 
-                    {banner && (
-                        <p
-                            className={`mt-4 rounded-lg border px-3 py-2 text-xs font-medium ${
-                                banner.kind === "success"
-                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                    : "border-red-200 bg-red-50 text-red-700"
-                            }`}
-                            role="status"
+                    <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={openBillPrint}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                         >
-                            {banner.text}
-                        </p>
-                    )}
-
-                    <div className="mt-4 flex justify-end">
+                            <Printer size={14} />
+                            Print
+                        </button>
+                        <button
+                            type="button"
+                            onClick={openBillPrint}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                        >
+                            <Download size={14} />
+                            Save as PDF
+                        </button>
                         <button
                             type="submit"
                             disabled={submitting}

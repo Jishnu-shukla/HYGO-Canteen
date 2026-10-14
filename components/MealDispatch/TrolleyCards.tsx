@@ -57,7 +57,7 @@ export function TrolleyCards({
 
         for (const order of orders) {
             const ward = order.ward_name || "Unassigned Ward";
-            const meal = order.meal_type || "N/A";
+            const meal = order.meal_type || "General";
             const key = `${ward}::${meal}`;
 
             const existing = groups.get(key);

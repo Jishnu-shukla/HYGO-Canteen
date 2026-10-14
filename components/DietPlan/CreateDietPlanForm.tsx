@@ -33,6 +33,15 @@ import {
 const inputClass =
     "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:border-amber-300 focus:bg-white focus:ring-2 focus:ring-amber-100 disabled:opacity-60";
 
+// Local (not UTC) yyyy-mm-dd, so the <input type="date"> shows the user's today.
+const getToday = () => {
+    const today = new Date();
+
+    return `${today.getFullYear()}-${String(
+        today.getMonth() + 1
+    ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+};
+
 function Field({
     label,
     required = false,
@@ -91,7 +100,7 @@ export default function CreateDietPlanForm({
         useState<TextureModification>("Regular");
     const [consistency, setConsistency] =
         useState<ConsistencyLiquid>("Thin");
-    const [startDate, setStartDate] = useState("");
+    const [startDate, setStartDate] = useState(getToday());
     const [endDate, setEndDate] = useState("");
     const [prescribedBy, setPrescribedBy] = useState("");
     /** Withheld dishes. Empty means the patient gets the full menu. */
@@ -116,7 +125,7 @@ export default function CreateDietPlanForm({
         setDietType("Normal");
         setTexture("Regular");
         setConsistency("Thin");
-        setStartDate("");
+        setStartDate(getToday());
         setEndDate("");
         setPrescribedBy("");
         setDisallowedIds([]);

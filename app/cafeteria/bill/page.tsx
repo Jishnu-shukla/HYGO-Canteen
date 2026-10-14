@@ -211,6 +211,17 @@ export default function CafeteriaBillPage() {
                 kind: "success",
                 text: "Transaction updated successfully.",
             });
+
+            // Drop the settled bill from the form and from sessionStorage so
+            // the previous customer's details are not still shown here (or
+            // restored on the next visit).
+            sessionStorage.removeItem("cafeteria_table_bill");
+            setLines([emptyLine(0)]);
+            setCustomerType("Visitor");
+            setCustomerName("");
+            setDiscountApplied("0");
+            setPaymentMode("Cash");
+            setPaymentStatus("Pending");
         } else {
             setBanner({ kind: "error", text: result.error });
         }

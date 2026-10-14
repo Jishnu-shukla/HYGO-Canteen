@@ -1,9 +1,12 @@
 "use client";
 
+import { getTableTransactionDetailsApi } from "@/data/Cafeteria/api";
+import type { GetTableTransactionDetails } from "@/data/Cafeteria/type";
 import type { TableDetails } from "@/data/Tables/type";
-import { Armchair, Download, Printer, X } from "lucide-react";
+import { showErrorToast } from "@/utils/toast";
+import { Armchair, ChefHat, Download, LoaderCircle, Printer, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 function escapeHtml(value: string): string {
     const entities: Record<string, string> = {
@@ -23,6 +26,58 @@ function svgMarkup(svg: SVGSVGElement): string {
         : markup.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
 }
 
+/**
+ * Print-ready Kitchen Order Ticket for a table's open tab: table number, time
+ * and the item lines with quantities. Deliberately no prices — this is the
+ * kitchen's copy, while the bill is the customer's settled copy.
+ */
+function buildKotDocument(
+    table: TableDetails,
+    tab: GetTableTransactionDetails
+): string {
+    const rows = tab.items_purchased
+        .map((item) => {
+            const name = escapeHtml(item.recipe_name || item.item_id || "Item");
+
+            return `<tr><td class="qty">${escapeHtml(
+                String(item.quantity)
+            )}×</td><td>${name}</td></tr>`;
+        })
+        .join("");
+
+    const number = escapeHtml(table.table_number);
+    const placedAt = escapeHtml(new Date().toLocaleString("en-IN"));
+
+    return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>KOT — Table ${number}</title>
+<style>
+    * { box-sizing: border-box; }
+    body { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; color: #0f172a; margin: 0; padding: 24px; }
+    h1 { font-size: 18px; margin: 0; letter-spacing: 0.08em; }
+    .sub { font-size: 11px; color: #475569; margin-top: 4px; }
+    .meta { display: flex; justify-content: space-between; margin: 16px 0 8px; font-size: 12px; font-weight: 700; border-top: 2px solid #0f172a; border-bottom: 1px solid #cbd5e1; padding: 6px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    td { font-size: 13px; padding: 6px 0; vertical-align: top; border-bottom: 1px dashed #cbd5e1; }
+    td.qty { width: 48px; font-weight: 700; white-space: nowrap; }
+    .total { margin-top: 14px; font-size: 12px; font-weight: 700; }
+    @media print { body { padding: 8px; } }
+</style>
+</head>
+<body>
+    <h1>KITCHEN ORDER TICKET</h1>
+    <p class="sub">Cafeteria · ${escapeHtml(table.table_id)}</p>
+    <div class="meta"><span>Table ${number}</span><span>${placedAt}</span></div>
+    <table><tbody>${rows}</tbody></table>
+    <p class="total">${tab.items_purchased.length} line${
+        tab.items_purchased.length === 1 ? "" : "s"
+    }</p>
+</body>
+</html>`;
+}
+
 export function TableCards({
     tables,
     onOccupiedSelect,
@@ -32,6 +87,80 @@ export function TableCards({
 }) {
     const [selectedTable, setSelectedTable] = useState<TableDetails | null>(null);
     const qrRef = useRef<SVGSVGElement>(null);
+
+    // Table whose KOT is being fetched, so only that card's icon spins.
+    const [kotBusyTableId, setKotBusyTableId] = useState<string | null>(null);
+
+    /**
+     * Opens the occupied table's open tab as a print-ready Kitchen Order
+     * Ticket, from which the browser can print or "Save as PDF".
+     *
+     * The window is opened synchronously inside the click so the pop-up is not
+     * blocked, then filled in once the tab arrives; a fetch failure closes the
+     * placeholder and the API layer has already raised its own toast.
+     */
+    async function handleViewKot(table: TableDetails) {
+        if (kotBusyTableId) return;
+
+        const win = window.open("", "_blank", "width=460,height=640");
+
+        if (!win) {
+            showErrorToast(
+                "Pop-up blocked — allow pop-ups for this site to view the KOT."
+            );
+            return;
+        }
+
+        win.document.write(
+            '<!doctype html><title>KOT</title><body style="font-family:system-ui,sans-serif;padding:24px;color:#475569">Loading KOT…</body>'
+        );
+
+        setKotBusyTableId(table.table_id);
+
+        try {
+            const tab = await getTableTransactionDetailsApi({
+                table_number: table.table_number,
+            });
+
+            if (!tab) {
+                win.close();
+                return;
+            }
+
+            if (tab.items_purchased.length === 0) {
+                win.close();
+                showErrorToast(`No open order on table ${table.table_number}.`);
+                return;
+            }
+
+            win.document.open();
+            win.document.write(buildKotDocument(table, tab));
+            win.document.close();
+            win.focus();
+            window.setTimeout(() => win.print(), 300);
+        } catch (error) {
+            console.log(error);
+            win.close();
+            showErrorToast("Could not load the KOT for this table.");
+        } finally {
+            setKotBusyTableId(null);
+        }
+    }
+
+    // Always render in table-number order, regardless of the order the API
+    // returns. Numeric collation keeps "T-2" ahead of "T-10" instead of
+    // sorting them as raw strings.
+    const sortedTables = useMemo(
+        () =>
+            [...tables].sort((a, b) =>
+                a.table_number.localeCompare(b.table_number, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                })
+            ),
+        [tables]
+    );
+
     const statusStyles: Record<string, string> = {
         Available: "border-emerald-200 bg-emerald-50",
         Occupied: "border-amber-200 bg-amber-50",
@@ -53,44 +182,74 @@ export function TableCards({
                 </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
-                {tables.map((table) => (
-                    <button
-                        type="button"
+                {sortedTables.map((table) => (
+                    <div
                         key={table.table_id}
-                        onClick={() => {
-                            if (table.current_status === "Occupied") {
-                                onOccupiedSelect?.(table);
-                                return;
-                            }
-                            setSelectedTable(table);
-                        }}
-                        className={`relative w-full rounded-2xl border p-3 text-left shadow-sm transition hover:shadow-md ${
-                            statusStyles[table.current_status] || "border-slate-200 bg-white"
-                        }`}
+                        className="relative"
                     >
-                        <div className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm">
-                            {table.capacity} seats
-                        </div>
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/80 text-slate-700">
-                            <Armchair size={18} />
-                        </div>
-                        <p className="mt-3 text-lg font-semibold text-slate-800">
-                            {table.table_number}
-                        </p>
-                        <p
-                            className={`mt-1 text-xs font-medium ${
-                                statusText[table.current_status] || "text-slate-600"
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (table.current_status === "Occupied") {
+                                    onOccupiedSelect?.(table);
+                                    return;
+                                }
+                                setSelectedTable(table);
+                            }}
+                            className={`w-full rounded-2xl border p-3 text-left shadow-sm transition hover:shadow-md ${
+                                statusStyles[table.current_status] || "border-slate-200 bg-white"
                             }`}
                         >
-                            {table.current_status}
-                        </p>
-                    </button>
+                            <div className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm">
+                                {table.capacity} seats
+                            </div>
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/80 text-slate-700">
+                                <Armchair size={18} />
+                            </div>
+                            <p className="mt-3 text-lg font-semibold text-slate-800">
+                                {table.table_number}
+                            </p>
+                            <p
+                                className={`mt-1 text-xs font-medium ${
+                                    statusText[table.current_status] || "text-slate-600"
+                                }`}
+                            >
+                                {table.current_status}
+                            </p>
+                        </button>
+
+                        {table.current_status === "Occupied" && (
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleViewKot(table);
+                                }}
+                                disabled={kotBusyTableId === table.table_id}
+                                title={`View KOT for table ${table.table_number}`}
+                                aria-label={`View kitchen order ticket for table ${table.table_number}`}
+                                className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-amber-300 bg-white text-amber-700 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {kotBusyTableId === table.table_id ? (
+                                    <LoaderCircle size={14} className="animate-spin" />
+                                ) : (
+                                    <ChefHat size={14} />
+                                )}
+                            </button>
+                        )}
+                    </div>
                 ))}
             </div>
 
             {selectedTable && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl">
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                    onMouseDown={() => setSelectedTable(null)}
+                >
+                    <div
+                        className="relative w-full max-w-md rounded-2xl bg-white shadow-xl"
+                        onMouseDown={(event) => event.stopPropagation()}
+                    >
                         <button
                             type="button"
                             onClick={() => setSelectedTable(null)}

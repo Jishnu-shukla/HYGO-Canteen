@@ -1,12 +1,17 @@
 "use client";
 
-import { InventoryBatch, InventoryTableItem } from "@/data/Inventory/type";
+import { InventoryBatch, InventoryPagination, InventoryTableItem } from "@/data/Inventory/type";
 import { ChevronsRight } from "lucide-react";
 import { useState } from "react";
 
 
 export interface InventoryTableProps {
     items: InventoryTableItem[];
+    loading?: boolean;
+    /** Server pagination for the current page, so the table can render a pager. */
+    pagination?: InventoryPagination;
+    /** Server-side page change. The pager is hidden when this is omitted. */
+    onPageChange?: (page: number) => void;
     onEdit?: (item: InventoryTableItem) => void;
     onDelete?: (item: InventoryTableItem) => void;
     onPOTrigger?: (item: InventoryTableItem) => void;
@@ -21,16 +26,21 @@ const formatQuantity = (quantity: number, unit: string) => {
 };
 
 const getTotalQuantity = (item: InventoryTableItem) => {
-    console.log(item)
-    if (!!item.batches && item.batches.length === 0) {
-        return 0;
+    // GET /api/inventory rolls the batches up into total_quantity; fall back to
+    // summing them locally for older/shape-variant responses.
+    if (typeof item.total_quantity === "number") {
+        return item.total_quantity;
     }
-    return item.batches.reduce(
+
+    return (item.batches ?? []).reduce(
         (total, batch) =>
             total + Number(batch.current_quantity ?? batch.initial_quantity ?? 0),
         0
     );
 };
+
+const getBatchCount = (item: InventoryTableItem) =>
+    item.batch_count ?? item.batches?.length ?? 0;
 
 const getNearestExpiry = (item: InventoryTableItem) => {
     const today = new Date();
@@ -90,6 +100,9 @@ function POIcon() {
 
 export default function InventoryTable({
     items,
+    loading = false,
+    pagination,
+    onPageChange,
     onEdit,
     onDelete,
     onPOTrigger,
@@ -98,6 +111,18 @@ export default function InventoryTable({
     poBusyId,
 }: InventoryTableProps) {
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+
+    const page = pagination?.page ?? 1;
+    const totalPages = pagination?.total_pages ?? 1;
+    const total = pagination?.total ?? items.length;
+
+    const isFirstPage = page <= 1;
+    const isLastPage = page >= totalPages;
+
+    // Row range for the "showing X–Y of Z" line.
+    const from = total === 0 ? 0 : (page - 1) * (pagination?.limit ?? 0) + 1;
+    const to = from === 0 ? 0 : from + items.length - 1;
+
     return (
         <div className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
             <div className="overflow-x-auto">
@@ -129,7 +154,16 @@ export default function InventoryTable({
                     </thead>
 
                     <tbody>
-                        {items.length === 0 ? (
+                        {loading ? (
+                            <tr>
+                                <td
+                                    colSpan={7}
+                                    className="px-4 py-12 text-center text-xs text-slate-400"
+                                >
+                                    Loading inventory...
+                                </td>
+                            </tr>
+                        ) : items.length === 0 ? (
                             <tr>
                                 <td
                                     colSpan={7}
@@ -169,8 +203,8 @@ export default function InventoryTable({
                                                             {item.item_name}
                                                         </p>
                                                         <p className="mt-0.5 text-[9px] text-slate-400">
-                                                            {item.batches.length}{" "}
-                                                            {item.batches.length === 1
+                                                            {getBatchCount(item)}{" "}
+                                                            {getBatchCount(item) === 1
                                                                 ? "batch"
                                                                 : "batches"}
                                                         </p>
@@ -416,6 +450,56 @@ export default function InventoryTable({
                     </tbody>
                 </table>
             </div>
+
+            {/* Pager — server-side page change, table only */}
+            {onPageChange && total > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-blue-100 px-4 py-3">
+                    <p className="text-[11px] text-slate-500">
+                        {loading
+                            ? "Loading..."
+                            : `Showing ${from}–${to} of ${total}`}
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                        <PagerButton
+                            label="Previous"
+                            disabled={loading || isFirstPage}
+                            onClick={() => onPageChange(page - 1)}
+                        />
+
+                        <span className="min-w-[70px] text-center text-[11px] font-semibold text-slate-600">
+                            Page {page} of {totalPages}
+                        </span>
+
+                        <PagerButton
+                            label="Next"
+                            disabled={loading || isLastPage}
+                            onClick={() => onPageChange(page + 1)}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
+    );
+}
+
+function PagerButton({
+    label,
+    disabled,
+    onClick,
+}: {
+    label: string;
+    disabled: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            className="rounded-full border border-blue-100 bg-white px-3.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+            {label}
+        </button>
     );
 }

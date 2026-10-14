@@ -6,8 +6,9 @@ import { CalendarClock, Check, LoaderCircle, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 /**
- * Meal slots a schedule row can be published for, in wire order. "N/A" is left
- * out: it is the "no meal" placeholder, not something the kitchen schedules.
+ * Meal slots a schedule row can be published for, in wire order. "General" is
+ * left out: it is the general/staff menu slot, not something the kitchen
+ * schedules for wards.
  */
 const SCHEDULABLE_SLOTS: MealSlot[] = [
     "Breakfast",
@@ -26,7 +27,7 @@ const DEFAULT_SLOT_TIMES: Record<MealSlot, string> = {
     Lunch: "12:30",
     Snack: "16:30",
     Dinner: "19:30",
-    "N/A": "",
+    General: "",
 };
 
 /** Today as yyyy-mm-dd, the value a date input expects. */

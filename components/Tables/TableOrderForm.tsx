@@ -77,9 +77,11 @@ function flattenMenuOptions(menus: GeneralMenu[]): MenuOption[] {
 }
 
 /**
- * The single form on the Tables screen: a customer at a table places an
- * order via POST /api/cafeteria/table.
+ * The order form for a single table: a customer seated there places an order
+ * via POST /api/cafeteria/table.
  *
+ * The table id is not entered here — it arrives as the `tableId` prop, read
+ * from the URL (/tables/<table_id>), which is what the table's QR code opens.
  * The client sends exactly the three contract fields — table_id (validated
  * server-side against TableOrder, never persisted), customer_name
  * (display-only) and the order lines. Subtotal/total/payment_status are the
@@ -90,8 +92,7 @@ function flattenMenuOptions(menus: GeneralMenu[]): MenuOption[] {
  * loaded, each line falls back to a plain item-id input so the form still
  * works rather than blocking the screen on a menu read.
  */
-export function TableOrderForm() {
-    const [tableId, setTableId] = useState("");
+export function TableOrderForm({ tableId }: { tableId: string }) {
     const [customerName, setCustomerName] = useState("");
     const [lines, setLines] = useState<OrderLine[]>([emptyLine(0)]);
 
@@ -170,7 +171,7 @@ export function TableOrderForm() {
         if (tableId.trim() === "") {
             setBanner({
                 kind: "error",
-                text: "Table id is required — e.g. T-001.",
+                text: "No table id in the URL — open this page from the table's QR code.",
             });
             return;
         }
@@ -232,7 +233,6 @@ export function TableOrderForm() {
                     result.response.message ||
                     "Order placed — settled later at the counter.",
             });
-            setTableId("");
             setCustomerName("");
             setLines([emptyLine(nextKey())]);
         } else {
@@ -254,49 +254,26 @@ export function TableOrderForm() {
             </div>
 
             <form onSubmit={handleSubmit} className="px-4 py-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                        <label htmlFor="table-id" className={labelClass}>
-                            Table id
-                        </label>
+                <div>
+                    <label htmlFor="customer-name" className={labelClass}>
+                        Customer name
+                    </label>
 
-                        <input
-                            id="table-id"
-                            type="text"
-                            required
-                            value={tableId}
-                            onChange={(event) => setTableId(event.target.value)}
-                            placeholder="T-001"
-                            className={inputClass}
-                        />
+                    <input
+                        id="customer-name"
+                        type="text"
+                        value={customerName}
+                        onChange={(event) =>
+                            setCustomerName(event.target.value)
+                        }
+                        placeholder="Walk-in customer"
+                        className={inputClass}
+                    />
 
-                        <p className="mt-1 text-[10px] text-slate-400">
-                            From the table&apos;s QR — checked against the
-                            registered tables, never stored on the transaction.
-                        </p>
-                    </div>
-
-                    <div>
-                        <label htmlFor="customer-name" className={labelClass}>
-                            Customer name
-                        </label>
-
-                        <input
-                            id="customer-name"
-                            type="text"
-                            value={customerName}
-                            onChange={(event) =>
-                                setCustomerName(event.target.value)
-                            }
-                            placeholder="Walk-in customer"
-                            className={inputClass}
-                        />
-
-                        <p className="mt-1 text-[10px] text-slate-400">
-                            Display only — echoed back for the row, never
-                            persisted.
-                        </p>
-                    </div>
+                    <p className="mt-1 text-[10px] text-slate-400">
+                        Display only — echoed back for the row, never
+                        persisted.
+                    </p>
                 </div>
 
                 <div className="mt-5">
