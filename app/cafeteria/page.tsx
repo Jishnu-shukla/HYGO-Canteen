@@ -104,7 +104,6 @@ export default function CafeteriaPage() {
                     aria-expanded={showAddTable}
                     className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-amber-700 md:self-center"
                 >
-                    <Plus size={15} />
                     Add table
                 </button>
             </section>

@@ -501,7 +501,6 @@ export default function CreateAssessmentForm({
                             </>
                         ) : (
                             <>
-                                <Plus size={16} />
                                 Save Assessment
                             </>
                         )}

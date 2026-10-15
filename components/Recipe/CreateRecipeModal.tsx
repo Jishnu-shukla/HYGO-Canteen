@@ -780,7 +780,6 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                                 </>
                             ) : (
                                 <>
-                                    <Plus size={16} />
                                     Create Recipe
                                 </>
                             )}

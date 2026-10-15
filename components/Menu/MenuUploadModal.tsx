@@ -13,7 +13,7 @@ import {
     PAITENTMENU_DAYS,
 } from "@/data/Menu/type";
 import type { MasterMenuItem } from "@/data/MasterMenu/type";
-import { LoaderCircle, Plus, X } from "lucide-react";
+import { LoaderCircle, X } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 
 function Field({
@@ -411,7 +411,6 @@ export default function MenuUploadModal({
                                 </>
                             ) : (
                                 <>
-                                    <Plus size={16} />
                                     Upload Menu
                                 </>
                             )}

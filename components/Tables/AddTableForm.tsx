@@ -2,7 +2,7 @@
 
 import { addTableApi } from "@/data/Tables/api";
 import type { AddTableBody, AddTableResponse } from "@/data/Tables/type";
-import { Download, Plus, Printer } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useRef, useState, type FormEvent } from "react";
 
@@ -207,7 +207,6 @@ export function AddTableForm({
                         onClick={reset}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50"
                     >
-                        <Plus size={14} />
                         Add another table
                     </button>
                 )}

@@ -3,9 +3,9 @@
 import CreateDietOrderForm from "@/components/DietOrder/CreateDietOrderForm";
 import DeleteDietOrderConfirmModal from "@/components/DietOrder/DeleteDietOrderConfirmModal";
 import EditDietOrderModal from "@/components/DietOrder/EditDietOrderModal";
-import { DietOrderBoard } from "@/components/DietOrder/DietOrderBoard";
 import { DietOrderSummaryCard } from "@/components/DietOrder/DietOrderSummaryCard";
 import { DietOrderTable } from "@/components/DietOrder/DietOrderTable";
+import { WardMealBoard } from "@/components/Dashboard/charts/WardMealBoard";
 import {
     DIET_ORDER_PAGE_SIZE,
     EMPTY_PAGINATION,
@@ -249,7 +249,7 @@ export default function DietOrdersPage() {
 
             <CreateDietOrderForm onSubmit={handleCreateOrder} />
 
-            <DietOrderBoard orders={boardOrders} loading={isBoardLoading} />
+            <WardMealBoard orders={boardOrders} loading={isBoardLoading} />
 
             <DietOrderTable
                 orders={tableOrders}

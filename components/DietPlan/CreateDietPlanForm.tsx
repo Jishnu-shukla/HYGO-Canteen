@@ -373,7 +373,6 @@ export default function CreateDietPlanForm({
                             </>
                         ) : (
                             <>
-                                <Plus size={16} />
                                 Create Plan
                             </>
                         )}

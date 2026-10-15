@@ -15,7 +15,6 @@ import {
     Edit3,
     Leaf,
     PackageSearch,
-    Plus,
     Search,
     ShoppingCart,
     Trash2,
@@ -102,7 +101,6 @@ export default function Recipe() {
                     onClick={() => setIsCreateRecipeOpen(true)}
                     className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800"
                 >
-                    <Plus size={18} />
                     Create Recipe
                 </button>
             </section>

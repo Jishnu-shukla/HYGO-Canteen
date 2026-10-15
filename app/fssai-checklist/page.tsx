@@ -104,7 +104,6 @@ export default function FssaiChecklistPage() {
                     onClick={() => setIsCreateOpen(true)}
                     className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 md:self-auto"
                 >
-                    <Plus size={16} />
                     Add Category
                 </button>
             </section>

@@ -1,12 +1,27 @@
 import { useMemo } from "react";
+import type { DietOrderListItem } from "@/data/DietOrder/type";
+
+/**
+ * Two feeds render on this board:
+ * - the dashboard's nested `meal_orders` payload,
+ * - the diet orders page's flat list rows (DietOrderListItem).
+ *
+ * Both are normalised to MealBoardOrder below, so callers pass their rows
+ * straight through with no adapter of their own.
+ */
+type DashboardBoardOrder = dashboardOrder & {
+    status?: string;
+    bad_number?: string;
+    bed_number?: string;
+    is_special?: boolean;
+};
+
+export type WardMealBoardOrder = DashboardBoardOrder | DietOrderListItem;
 
 interface WardMealBoardProps {
-    orders: (dashboardOrder & {
-        status?: string;
-        bad_number?: string;
-        bed_number?: string;
-        is_special?: boolean;
-    })[];
+    orders: WardMealBoardOrder[];
+    /** Renders "-" in the order count while the first fetch is in flight. */
+    loading?: boolean;
 }
 
 type MealBoardOrder = {
@@ -19,19 +34,40 @@ type MealBoardOrder = {
     is_special?: boolean;
 };
 
-export function WardMealBoard({ orders: apiOrders }: WardMealBoardProps) {
+/** Diet rows carry the patient id as a string; the dashboard resolves it to an object. */
+const isDietOrder = (order: WardMealBoardOrder): order is DietOrderListItem =>
+    typeof order.patient_id === "string";
+
+export function WardMealBoard({
+    orders: apiOrders,
+    loading = false,
+}: WardMealBoardProps) {
     // Use ALL meal orders returned by the API.
     // There is no separate pendingOrders/specialOrders source anymore.
     const mealOrders: MealBoardOrder[] = useMemo(() => {
-        return apiOrders.map((order) => ({
-            order_id: order.order_id,
-            patient_name: order.patient_id?.name ?? "Unknown Patient",
-            ward_name: order.ward_name.label ?? "Unknown Ward",
-            meal_type: order.meal_type?.label ?? "Meal",
-            bed_number: order.bed_number ?? order.bad_number ?? "-",
-            status: order.status ?? "Ordered",
-            is_special: !!order.is_special,
-        }));
+        return apiOrders.map((order) => {
+            if (isDietOrder(order)) {
+                return {
+                    order_id: order.order_id,
+                    patient_name: order.patient_name || "Unknown Patient",
+                    ward_name: order.ward_name || "Unknown Ward",
+                    meal_type: order.meal_type || "Meal",
+                    bed_number: order.bed_number || "-",
+                    status: order.status || "Ordered",
+                    is_special: !!order.is_special,
+                };
+            }
+
+            return {
+                order_id: order.order_id,
+                patient_name: order.patient_id?.name ?? "Unknown Patient",
+                ward_name: order.ward_name.label ?? "Unknown Ward",
+                meal_type: order.meal_type?.label ?? "Meal",
+                bed_number: order.bed_number ?? order.bad_number ?? "-",
+                status: order.status ?? "Ordered",
+                is_special: !!order.is_special,
+            };
+        });
     }, [apiOrders]);
 
     // Database statuses
@@ -53,16 +89,18 @@ export function WardMealBoard({ orders: apiOrders }: WardMealBoardProps) {
             title: "DISPATCHED",
         },
         {
-            key: "Recieved",
+            key: "Received",
             title: "RECIEVED",
         },
     ];
 
     const getOrdersForColumn = (status: string) => {
-        return mealOrders.filter(
+        const orders = mealOrders.filter(
             (order) =>
                 order.status?.toLowerCase() === status.toLowerCase()
         );
+        console.log(`Orders for ${status}:`, orders);
+        return orders;
     };
 
     const mealBadge = (mealType: string) => {
@@ -102,7 +140,7 @@ export function WardMealBoard({ orders: apiOrders }: WardMealBoardProps) {
                 </div>
 
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
-                    {mealOrders.length} ORDERS
+                    {loading ? "-" : mealOrders.length} ORDERS
                 </span>
             </div>
 

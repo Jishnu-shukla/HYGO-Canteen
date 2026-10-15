@@ -347,7 +347,6 @@ export default function CreateAllergyPrefForm({
                             </>
                         ) : (
                             <>
-                                <Plus size={16} />
                                 Save Preference
                             </>
                         )}

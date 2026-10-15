@@ -264,7 +264,6 @@ export default function CreateDietOrderForm({
                             </>
                         ) : (
                             <>
-                                <Plus size={16} />
                                 Create Order
                             </>
                         )}
