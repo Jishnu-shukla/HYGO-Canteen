@@ -1,6 +1,10 @@
 import { API_BASE_URL } from "@/data/apiBaseUrl";
+import { ALLERGY_SEVERITY } from "./type";
 import type {
+    AllergyEntry,
+    AllergyPrefListItem,
     AllergyPrefPagination,
+    AllergySeverity,
     CreateAllergyPrefBody,
     CreateAllergyPrefResponse,
     DeleteAllergyPrefResponse,
@@ -10,6 +14,86 @@ import type {
     UpdateAllergyPrefBody,
     UpdateAllergyPrefResponse,
 } from "./type";
+
+/**
+ * A list row as it actually arrives, which may still be the pre-migration
+ * scalar shape the server has been observed sending: `allergies: "Penuts"`,
+ * `intolerances: "Lactos"` and a record-level `severity`.
+ */
+type RawAllergyPrefRow = Omit<AllergyPrefListItem, "allergies" | "intolerances"> & {
+    allergies?: unknown;
+    intolerances?: unknown;
+    severity?: unknown;
+};
+
+function isAllergyEntry(value: unknown): value is AllergyEntry {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        typeof (value as { name?: unknown }).name === "string"
+    );
+}
+
+/** Falls back to "Mild" for a value outside the declared vocabulary. */
+function normalizeSeverity(value: unknown): AllergySeverity {
+    return ALLERGY_SEVERITY.includes(value as AllergySeverity)
+        ? (value as AllergySeverity)
+        : "Mild";
+}
+
+/**
+ * Accepts either shape the API has shipped: the array of { name, severity }
+ * entries the create body uses, or the legacy single free-text string. A
+ * legacy string has no per-allergy severity, so the record-level `severity` is
+ * borrowed for it when the server still sends one.
+ */
+function normalizeAllergies(
+    value: unknown,
+    recordSeverity: unknown
+): AllergyEntry[] {
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) =>
+                isAllergyEntry(entry)
+                    ? {
+                          name: entry.name,
+                          severity: normalizeSeverity(entry.severity),
+                      }
+                    : {
+                          name: typeof entry === "string" ? entry : "",
+                          severity: normalizeSeverity(recordSeverity),
+                      }
+            )
+            .map((entry) => ({ ...entry, name: entry.name.trim() }))
+            .filter((entry) => entry.name !== "");
+    }
+
+    if (typeof value === "string" && value.trim() !== "") {
+        return [{ name: value.trim(), severity: normalizeSeverity(recordSeverity) }];
+    }
+
+    return [];
+}
+
+/** Accepts a string[] or the legacy comma-separated single string. */
+function normalizeIntolerances(value: unknown): string[] {
+    const parts = Array.isArray(value)
+        ? value
+        : typeof value === "string"
+          ? value.split(",")
+          : [];
+
+    return parts.map((item) => String(item).trim()).filter((item) => item !== "");
+}
+
+/** Pins one wire row to the array-shaped contract every consumer expects. */
+function normalizeAllergyPrefRow(row: RawAllergyPrefRow): AllergyPrefListItem {
+    return {
+        ...row,
+        allergies: normalizeAllergies(row.allergies, row.severity),
+        intolerances: normalizeIntolerances(row.intolerances),
+    };
+}
 
 /**
  * GET /api/allergypref/summary — global totals, no query parameters.
@@ -213,7 +297,7 @@ export async function getAllergyPrefsApi(
             typeof pagination?.total_pages === "number";
 
         return {
-            data: rows as GetAllergyPrefsResponse["data"],
+            data: (rows as RawAllergyPrefRow[]).map(normalizeAllergyPrefRow),
             pagination: hasMeta
                 ? pagination
                 : fallbackPagination(page, limit, rows.length),

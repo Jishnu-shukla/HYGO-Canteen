@@ -28,3 +28,21 @@
         transform: translateY(0) scale(1);
     }
 }
+
+/* ------------------------------------------------------------------ *
+ * Number inputs (app-wide)
+ *
+ * Hides the browser's up/down spinner so a quantity cannot be nudged by
+ * clicking the control. Scoped to input[type="number"], so text, date
+ * and search fields keep their own affordances.
+ * ------------------------------------------------------------------ */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+}

@@ -238,10 +238,54 @@ export type CafeteriaPaymentStatus =
 /**
  * Body for PUT /api/cafeteria/table — replace the fields of a table's OPEN
  * transaction.
+ *
+ * Every field was checked against cafeteriaSchema; all ten are writable
+ * schema fields, and the three fields the schema owns are correctly absent:
+ *
+ *   | schema field          | in body | why                                 |
+ *   | --------------------- | ------- | ----------------------------------- |
+ *   | transaction_id        | no      | server-minted, immutable business id|
+ *   | customer_type         | yes     | enum CAFETERIA_CUSTOMER_TYPES       |
+ *   | customer_name         | yes     | string \| null matches default null |
+ *   | mobile_number         | yes     | string \| null matches default null |
+ *   | items_purchased       | yes     | lines, MSTI-… ids (refs stored)      |
+ *   | table_id              | yes     | VERIFICATION ONLY — see below       |
+ *   | subtotal_amount       | yes     | writable, min 0                     |
+ *   | discount_applied      | yes     | writable, min 0                     |
+ *   | total_amount          | yes     | writable, min 0                     |
+ *   | payment_mode          | yes     | enum CAFETERIA_PAYMENT_MODES        |
+ *   | payment_status        | yes     | enum CAFETERIA_PAYMENT_STATUSES     |
+ *   | cashier_id            | no      | placeholder ObjectId until auth lands|
+ *   | transaction_timestamp | no      | server-owned                        |
+ *
+ * table_id is the one field here that is NOT an update: it names the table
+ * whose transaction is being verified and located (unknown table -> 404). The
+ * service deliberately leaves it out of the $set, so a caller can never
+ * re-point a transaction at another table — the value in the response is the
+ * one the transaction was created with.
+ *
+ * table_id identifies the table by its NUMBER TableOrder.table_number,
+ * the same spelling POST accepts), and targets that table's OPEN tab — the
+ * newest payment_status: "Pending" transaction, i.e. the one GET reads and
+ * POST appends to. Once it is settled, the endpoint has nothing to update and
+ * answers 404: settled history is not editable through this route.
+ *
+ * The amounts are taken as sent rather than re-derived from items_purchased
+ * — a discount or manual correction is applied exactly as the client
+ * computed it, so total_amount is whatever the body says, not
+ * subtotal − discount.
+ *
+ * This endpoint also SETTLES the tab: the service forces payment_status to
+ * "Paid" and consumes stock for the lines being written — every unit sold draws
+ * its recipe's ingredients from the store room, soonest-expiry-first, the same
+ * FEFO draw the kitchen ready flow makes. If stock cannot cover the sale the
+ * request fails 409 and nothing moves (the tab stays Pending, the table stays
+ * Occupied), so the response contract is unchanged.
  */
 export interface CreateCafeteriaTransactionBody {
     customer_type: CafeteriaCustomerType;
     customer_name: string | null;
+    mobile_number: string | null;
     items_purchased: CafeteriaItemPurchased[];
     /** Table verification only (TableOrder.table_number) — never written back. */
     table_id: string;
@@ -254,6 +298,11 @@ export interface CreateCafeteriaTransactionBody {
 
 /**
  * PUT /api/cafeteria/table response — the updated transaction after the
- * $set landed. Same row shape as a POST response.
+ * $set landed. Same row shape as a POST response (hence the alias): the
+ * stored table_id is echoed too, proving which transaction was touched.
+ *
+ * The alias is deliberate even though settling also draws stock: the deduction
+ * is a side effect, so a settle carries exactly the same fields as a posted
+ * order (no stock counts) and the two contracts cannot drift apart.
  */
-export type UpdateTableOrderResponse = Record<string, unknown>;
+export type UpdateTableOrderResponse = PlaceTableOrderResponse;

@@ -3,19 +3,21 @@
 import PatientSearchField from "@/components/DietOrder/PatientSearchField";
 import { createAllergyPrefApi } from "@/data/AllergyPref/api";
 import type {
-    AllergySeverity,
+    AllergyEntry,
     CreateAllergyPrefBody,
     CreateAllergyPrefResponse,
     ReligiousDietaryRestriction,
 } from "@/data/AllergyPref/type";
-import {
-    ALLERGY_SEVERITY,
-    RELIGIOUS_DIETARY_RESTRICTION,
-} from "@/data/AllergyPref/type";
+import { RELIGIOUS_DIETARY_RESTRICTION } from "@/data/AllergyPref/type";
 import type { Patient } from "@/data/DietOrder/type";
-import { CheckCircle2, LoaderCircle, Plus, ShieldAlert, TriangleAlert } from "lucide-react";
+import {
+    CheckCircle2,
+    LoaderCircle,
+    ShieldAlert,
+    TriangleAlert,
+} from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { SEVERITY_LABEL } from "./allergyPrefLabels";
+import { AllergyTagField, IntoleranceTagField } from "./AllergyTagFields";
 
 const inputClass =
     "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:border-amber-300 focus:bg-white focus:ring-2 focus:ring-amber-100 disabled:opacity-60";
@@ -70,9 +72,10 @@ export default function CreateAllergyPrefForm({
     ) => Promise<CreateAllergyPrefResponse>;
 }) {
     const [patient, setPatient] = useState<Patient | null>(null);
-    const [allergies, setAllergies] = useState("");
-    const [intolerances, setIntolerances] = useState("");
-    const [severity, setSeverity] = useState<AllergySeverity | "">("");
+    // Both collections are capsule editors, so they only ever hold committed
+    // values — there is no blank draft row to strip out at submit time.
+    const [allergies, setAllergies] = useState<AllergyEntry[]>([]);
+    const [intolerances, setIntolerances] = useState<string[]>([]);
     const [restriction, setRestriction] =
         useState<ReligiousDietaryRestriction | "">("");
     const [extraNotes, setExtraNotes] = useState("");
@@ -84,14 +87,12 @@ export default function CreateAllergyPrefForm({
         null
     );
 
-    const hasNoTriggers =
-        allergies.trim() === "" && intolerances.trim() === "";
+    const hasNoTriggers = allergies.length === 0 && intolerances.length === 0;
 
     const resetForm = () => {
         setPatient(null);
-        setAllergies("");
-        setIntolerances("");
-        setSeverity("");
+        setAllergies([]);
+        setIntolerances([]);
         setRestriction("");
         setExtraNotes("");
         setIsMenuDefault(false);
@@ -109,21 +110,17 @@ export default function CreateAllergyPrefForm({
         setError("");
         setCreated(null);
 
-        // Only non-blank values are sent, so severity and the dietary
-        // restriction fall back to the schema default server-side rather than
-        // being pinned to whatever the dropdown happened to show.
+        // Only non-blank values are sent, so the dietary restriction falls
+        // back to the schema default server-side rather than being pinned to
+        // whatever the dropdown happened to show. Severity has no separate
+        // field any more — it travels on each allergy entry.
         const body: CreateAllergyPrefBody = {
             uhid: patient.uhid,
             patient_name: patient.name,
         };
 
-        const allergy = allergies.trim();
-        if (allergy) body.allergies = allergy;
-
-        const intolerance = intolerances.trim();
-        if (intolerance) body.intolerances = intolerance;
-
-        if (severity) body.severity = severity;
+        if (allergies.length > 0) body.allergies = allergies;
+        if (intolerances.length > 0) body.intolerances = intolerances;
         if (restriction) body.religious_dietary_restrictions = restriction;
 
         const note = extraNotes.trim();
@@ -190,10 +187,10 @@ export default function CreateAllergyPrefForm({
                 onSubmit={handleSubmit}
                 className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
             >
-                {/* Patient picker — the only source of the UHID. Shared with
-                    diet orders; there is no /api/allergypref/paitent. Rendered
-                    directly because it brings its own required-marker label. */}
-                <div className="sm:col-span-2 xl:col-span-1">
+                {/* Patient picker owns the first row — the only source of the
+                    UHID, shared with diet orders; there is no
+                    /api/allergypref/paitent. */}
+                <div className="sm:col-span-2 xl:col-span-3">
                     <PatientSearchField
                         selected={patient}
                         onSelect={setPatient}
@@ -201,55 +198,29 @@ export default function CreateAllergyPrefForm({
                     />
                 </div>
 
+                {/* The two collections sit side by side beneath the patient
+                    and stay compact: committed values collapse into capsules
+                    rather than each getting a row of inputs. */}
                 <Field
-                    label="Allergy"
-                    hint="e.g. Peanuts. Leave blank if none."
+                    label="Allergies"
+                    hint="Type a name, pick its severity, press Enter. Hover a capsule to remove it."
                 >
-                    <input
-                        type="text"
+                    <AllergyTagField
                         value={allergies}
+                        onChange={setAllergies}
                         disabled={saving}
-                        onChange={(event) => setAllergies(event.target.value)}
-                        placeholder="Peanuts"
-                        className={inputClass}
                     />
                 </Field>
 
                 <Field
-                    label="Intolerance"
-                    hint="e.g. Lactose. Leave blank if none."
+                    label="Intolerances"
+                    hint="Type a name, press Enter. Hover a capsule to remove it."
                 >
-                    <input
-                        type="text"
+                    <IntoleranceTagField
                         value={intolerances}
+                        onChange={setIntolerances}
                         disabled={saving}
-                        onChange={(event) =>
-                            setIntolerances(event.target.value)
-                        }
-                        placeholder="Lactose"
-                        className={inputClass}
                     />
-                </Field>
-
-                <Field
-                    label="Severity"
-                    hint="Applied automatically if left unset."
-                >
-                    <Select
-                        value={severity}
-                        disabled={saving}
-                        onChange={(event) =>
-                            setSeverity(event.target.value as AllergySeverity | "")
-                        }
-                    >
-                        <option value="">Default — Mild</option>
-
-                        {ALLERGY_SEVERITY.map((option) => (
-                            <option key={option} value={option}>
-                                {SEVERITY_LABEL[option]}
-                            </option>
-                        ))}
-                    </Select>
                 </Field>
 
                 <Field
@@ -290,9 +261,10 @@ export default function CreateAllergyPrefForm({
                     />
                 </Field>
 
-                {/* The checkbox spans the row because it is a standalone
-                    statement rather than a field paired with another. */}
-                <label className="flex cursor-pointer items-start gap-2.5 sm:col-span-2 xl:col-span-3">
+                {/* The checkbox takes the last two columns because it is a
+                    standalone statement rather than a field paired with
+                    another. */}
+                <label className="flex cursor-pointer items-start gap-2.5 sm:col-span-2 xl:col-span-2">
                     <input
                         type="checkbox"
                         checked={isMenuDefault}
@@ -331,11 +303,18 @@ export default function CreateAllergyPrefForm({
                     </p>
                 )}
 
-                <div className="flex justify-end sm:col-span-2 xl:col-span-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 sm:col-span-2 xl:col-span-3">
+                    {patient === null && !saving && (
+                        <p className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                            <TriangleAlert size={12} />
+                            Select a patient to continue.
+                        </p>
+                    )}
+
                     <button
                         type="submit"
                         disabled={patient === null || saving}
-                        className="flex items-center gap-1.5 rounded-full bg-amber-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="ml-auto flex items-center gap-1.5 rounded-full bg-amber-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {saving ? (
                             <>
@@ -346,19 +325,10 @@ export default function CreateAllergyPrefForm({
                                 Saving
                             </>
                         ) : (
-                            <>
-                                Save Preference
-                            </>
+                            <>Save Preference</>
                         )}
                     </button>
                 </div>
-
-                {patient === null && !saving && (
-                    <p className="flex items-center justify-end gap-1.5 text-[10px] text-slate-400 sm:col-span-2 xl:col-span-3">
-                        <TriangleAlert size={12} />
-                        Select a patient to continue.
-                    </p>
-                )}
             </form>
         </section>
     );

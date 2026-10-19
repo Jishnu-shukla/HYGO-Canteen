@@ -18,26 +18,24 @@ const headCell =
 const bodyCell = "px-5 py-2 text-[11px] text-slate-600";
 
 /**
- * Percentage widths for `table-fixed`. Severity is sized for the longest badge
- * ("Severe (Anaphylaxis)"); the two clinical text columns take the rest and
- * truncate rather than wrap.
+ * Percentage widths for `table-fixed`. The allergy column carries each
+ * allergen with its own severity badge, so it takes the largest share; the
+ * clinical text columns truncate rather than wrap.
  */
 const COL_WIDTHS = [
-    "10%", // Preference
-    "19%", // Patient
-    "13%", // Allergy
-    "11%", // Intolerance
-    "13%", // Severity
-    "12%", // Restriction
+    "12%", // Preference
+    "20%", // Patient
+    "26%", // Allergies
+    "16%", // Intolerances
+    "14%", // Restriction
     "12%", // Actions
 ];
 
 const HEADINGS = [
     "Preference",
     "Patient",
-    "Allergy",
-    "Intolerance",
-    "Severity",
+    "Allergies",
+    "Intolerances",
     "Restriction",
     "Actions",
 ];
@@ -75,10 +73,16 @@ export function AllergyPrefTable({
     const to = from === 0 ? 0 : from + prefs.length - 1;
 
     // The server takes no filter parameters, so filtering can only ever see the
-    // rows already loaded. `isPartial` drives the warning that admits this.
+    // rows already loaded. Severity now lives per allergy, so a row matches
+    // when any of its entries carries the chosen severity. `isPartial` drives
+    // the warning that admits this.
     const isFiltered = severityFilter !== "all";
     const visibleRows = isFiltered
-        ? prefs.filter((row) => row.severity === severityFilter)
+        ? prefs.filter((row) =>
+              row.allergies.some(
+                  (entry) => entry.severity === severityFilter
+              )
+          )
         : prefs;
 
     // More than one page means the filter is looking at a slice, not the set.
@@ -178,14 +182,12 @@ export function AllergyPrefTable({
                             </tr>
                         ) : (
                             visibleRows.map((pref) => {
-                                const severity = pref.severity as AllergySeverity;
-
-                                // Both clinical fields blank is an affirmed
+                                // Both clinical fields empty is an affirmed
                                 // "no known allergies" stub, not missing data —
                                 // worth saying in words rather than two dashes.
                                 const isAffirmedClear =
-                                    pref.allergies === "" &&
-                                    pref.intolerances === "";
+                                    pref.allergies.length === 0 &&
+                                    pref.intolerances.length === 0;
 
                                 return (
                                     <tr
@@ -215,12 +217,60 @@ export function AllergyPrefTable({
                                             </p>
                                         </td>
 
+                                        {/* Capsules rather than one long line:
+                                            severity is a property of the
+                                            allergy now, so each capsule carries
+                                            its own badge and a row can show two
+                                            severities at once. */}
                                         <td
-                                            className={`${bodyCell} truncate`}
-                                            title={pref.allergies}
+                                            className={`${bodyCell} align-top`}
+                                            title={pref.allergies
+                                                .map(
+                                                    (entry) =>
+                                                        `${entry.name} — ${
+                                                            SEVERITY_LABEL[
+                                                                entry
+                                                                    .severity
+                                                            ] ?? entry.severity
+                                                        }`
+                                                )
+                                                .join(", ")}
                                         >
-                                            {pref.allergies ? (
-                                                pref.allergies
+                                            {pref.allergies.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {pref.allergies.map(
+                                                        (entry, index) => (
+                                                            <span
+                                                                key={`${entry.name}-${index}`}
+                                                                className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white py-0.5 pl-2 pr-1 text-[10px] font-semibold text-slate-700 shadow-sm"
+                                                            >
+                                                                <span className="min-w-0 truncate">
+                                                                    {entry.name ||
+                                                                        DASH}
+                                                                </span>
+
+                                                                <span
+                                                                    title={
+                                                                        entry.severity
+                                                                    }
+                                                                    className={`shrink-0 rounded-full px-1 py-px text-[9px] font-bold ${
+                                                                        SEVERITY_BADGE[
+                                                                            entry
+                                                                                .severity
+                                                                        ] ??
+                                                                        UNKNOWN_SEVERITY_BADGE
+                                                                    }`}
+                                                                >
+                                                                    {SEVERITY_LABEL[
+                                                                        entry
+                                                                            .severity
+                                                                    ] ??
+                                                                        entry.severity}
+                                                                </span>
+                                                            </span>
+                                                        )
+                                                    )}
+                                                </div>
                                             ) : isAffirmedClear ? (
                                                 <span className="italic text-slate-400">
                                                     None recorded
@@ -230,27 +280,39 @@ export function AllergyPrefTable({
                                             )}
                                         </td>
 
+                                        {/* Same capsule treatment as allergies:
+                                            the field is an array on the wire,
+                                            so every value gets its own pill
+                                            instead of joining into one string. */}
                                         <td
-                                            className={`${bodyCell} truncate`}
-                                            title={pref.intolerances}
+                                            className={`${bodyCell} align-top`}
+                                            title={pref.intolerances.join(", ")}
                                         >
-                                            {pref.intolerances || DASH}
-                                        </td>
-
-                                        <td className={bodyCell}>
-                                            {/* The one field that escalates with
-                                                urgency, so the badge carries
-                                                colour rather than just text. */}
-                                            <span
-                                                title={pref.severity}
-                                                className={`block truncate rounded-3xl px-1.5 py-0.5 text-center text-[11px] font-bold ${
-                                                    SEVERITY_BADGE[severity] ??
-                                                    UNKNOWN_SEVERITY_BADGE
-                                                }`}
-                                            >
-                                                {SEVERITY_LABEL[severity] ??
-                                                    pref.severity}
-                                            </span>
+                                            {pref.intolerances.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {pref.intolerances.map(
+                                                        (
+                                                            intolerance,
+                                                            index
+                                                        ) => (
+                                                            <span
+                                                                key={`${intolerance}-${index}`}
+                                                                className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm"
+                                                            >
+                                                                <span className="min-w-0 truncate">
+                                                                    {intolerance}
+                                                                </span>
+                                                            </span>
+                                                        )
+                                                    )}
+                                                </div>
+                                            ) : isAffirmedClear ? (
+                                                <span className="italic text-slate-400">
+                                                    None recorded
+                                                </span>
+                                            ) : (
+                                                DASH
+                                            )}
                                         </td>
 
                                         {/* Rendered as the raw string: the live

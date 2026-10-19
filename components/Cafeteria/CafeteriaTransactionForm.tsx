@@ -14,8 +14,10 @@ import type {
 } from "@/data/Cafeteria/type";
 import { getMenusApi } from "@/data/Menu/api";
 import type { GeneralMenu } from "@/data/Menu/type";
-import { Download, Plus, Printer, Trash2 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { clearKotSnapshot } from "@/components/Cafeteria/kotSnapshot";
+import { showToast } from "@/utils/toast";
+import { Download, Plus, Printer, Trash2, X } from "lucide-react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 const inputClass =
     "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100";
@@ -60,6 +62,11 @@ const emptyLine = (key: number): OrderLine => ({
     quantity: "1",
     price_at_sale: "",
 });
+
+/** Rupee amounts are rounded to paise, so the derived pair stays readable. */
+function roundCurrency(value: number): number {
+    return Math.round(value * 100) / 100;
+}
 
 const customerTypes: CafeteriaCustomerType[] = [
     "Staff",
@@ -128,13 +135,82 @@ function linesFromTab(data: GetTableTransactionDetails): OrderLine[] {
     ];
 }
 
+/**
+ * Overlay and card chrome for the settle modal — the same dimmed backdrop and
+ * panel every other modal in the app uses, with the table named in the header
+ * so it reads as "this table's tab" even while the tab is still loading.
+ *
+ * `busy` is the form's in-flight flag: while a PUT is on the wire neither the
+ * backdrop nor the close button may dismiss the modal, so a slow request is
+ * not hidden behind a closed modal.
+ */
+function TransactionModal({
+    title,
+    subtitle,
+    busy,
+    onClose,
+    children,
+}: {
+    title: string;
+    subtitle: string;
+    busy: boolean;
+    onClose: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4 backdrop-blur-[2px]"
+            onMouseDown={() => !busy && onClose()}
+        >
+            <div
+                className="my-8 w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                onMouseDown={(event) => event.stopPropagation()}
+            >
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div className="min-w-0">
+                        <h2 className="text-lg font-semibold text-slate-800">
+                            {title}
+                        </h2>
+                        <p className="mt-0.5 truncate text-xs text-slate-400">
+                            {subtitle}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={onClose}
+                        className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+                        aria-label="Close"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+                {children}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * The counter's settle screen, as a modal over the tables grid: it loads the
+ * picked table's open tab, lets the cashier correct it, and PUTs it back —
+ * the service settles the tab as a side effect of that write (see the body
+ * contract for the stock draw and the 409).
+ *
+ * Mounted and unmounted by the page, once per picked table, so a second pick
+ * reloads rather than reusing the previous table's entered values.
+ */
 export function CafeteriaTransactionForm({
     initialTableNumber = "",
     onUpdated,
+    onClose,
 }: {
     /** A table picked from the grid outside; its open tab is loaded on mount. */
     initialTableNumber?: string;
+    /** Called after a successful update so the page can refresh its totals. */
     onUpdated?: () => void;
+    /** Dismisses the modal — the backdrop and the close button both call it. */
+    onClose: () => void;
 }) {
     const [tableNumber, setTableNumber] = useState(initialTableNumber);
     const [loadingTab, setLoadingTab] = useState(false);
@@ -143,8 +219,10 @@ export function CafeteriaTransactionForm({
 
     const [customerType, setCustomerType] = useState<CafeteriaCustomerType>("Visitor");
     const [customerName, setCustomerName] = useState("");
+    const [mobileNumber, setMobileNumber] = useState("");
     const [lines, setLines] = useState<OrderLine[]>([emptyLine(0)]);
     const [discountApplied, setDiscountApplied] = useState("0");
+    const [discountPercent, setDiscountPercent] = useState("");
     const [paymentMode, setPaymentMode] = useState<CafeteriaPaymentMode>("Cash");
     const [paymentStatus, setPaymentStatus] = useState<CafeteriaPaymentStatus>("Pending");
 
@@ -244,8 +322,39 @@ export function CafeteriaTransactionForm({
         return sum + quantity * price;
     }, 0);
 
-    const discount = Number(discountApplied);
+    // The percentage is a convenience over the rupee amount the API takes:
+    // while one is set the rupee discount is DERIVED from it, so adding or
+    // editing a line re-prices the discount instead of leaving it stale.
+    const percent = Number(discountPercent);
+    const hasPercent =
+        discountPercent.trim() !== "" && Number.isFinite(percent);
+    const discount = hasPercent
+        ? roundCurrency((subtotal * percent) / 100)
+        : Number(discountApplied);
     const total = subtotal - (Number.isFinite(discount) ? discount : 0);
+    // 0% adds nothing the bill does not already say (its discount is ₹0), so
+    // the label — and the printed line — only appear for a real discount.
+    const percentLabel =
+        hasPercent && percent > 0 ? `${percent}%` : "";
+    /** What the rupee field shows: the derived amount in percent mode. */
+    const discountValue = hasPercent ? String(discount) : discountApplied;
+
+    function applyDiscountPercent(value: string) {
+        setDiscountPercent(value);
+
+        // Leaving percent mode hands the rupee field the amount the percent
+        // had produced, so the discount stays visible and editable.
+        if (value.trim() === "") {
+            setDiscountApplied(String(discount));
+        }
+    }
+
+    function applyDiscountAmount(value: string) {
+        // Typing an amount is a manual override, and a percentage can no
+        // longer describe it: leave percent mode so the two never disagree.
+        setDiscountPercent("");
+        setDiscountApplied(value);
+    }
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -301,9 +410,21 @@ export function CafeteriaTransactionForm({
             return;
         }
 
+        if (
+            discountPercent.trim() !== "" &&
+            (!Number.isFinite(percent) || percent < 0 || percent > 100)
+        ) {
+            setBanner({
+                kind: "error",
+                text: "Discount percentage must be between 0 and 100.",
+            });
+            return;
+        }
+
         const body: CreateCafeteriaTransactionBody = {
             customer_type: customerType,
             customer_name: customerName.trim() === "" ? null : customerName.trim(),
+            mobile_number: mobileNumber.trim() === "" ? null : mobileNumber.trim(),
             items_purchased: items,
             table_id: tabData.table_number,
             subtotal_amount: subtotal,
@@ -318,27 +439,39 @@ export function CafeteriaTransactionForm({
         setSubmitting(false);
 
         if (result.ok) {
-            setBanner({
-                kind: "success",
-                text: "Transaction updated successfully.",
-            });
-
-            // The bill is settled: drop the completed tab and every entered
-            // value so the next customer starts from a blank form instead of
-            // seeing the previous order still filled in.
+            // The tab is settled: a paid bill's printed KOT history is done, so
+            // forget it and the next customer's first ticket prints in full (a
+            // Pending/edited tab keeps its history). Every entered value goes
+            // too, so nothing of the settled order can flash if the page ever
+            // keeps this form mounted instead of closing the modal.
+            if (paymentStatus === "Paid") {
+                clearKotSnapshot(tabData.table_id);
+            }
             setTabData(null);
             setTableNumber("");
             setLines([emptyLine(0)]);
             setCustomerType("Visitor");
             setCustomerName("");
+            setMobileNumber("");
             setDiscountApplied("0");
+            setDiscountPercent("");
             setPaymentMode("Cash");
             setPaymentStatus("Pending");
 
+            // The modal closes on success, so the confirmation is raised as a
+            // toast rather than a banner that would never be read; the page
+            // hears about the update to refresh its totals.
+            showToast({
+                variant: "success",
+                message: "Transaction updated successfully.",
+            });
+
             onUpdated?.();
-        } else {
-            setBanner({ kind: "error", text: result.error });
+            onClose();
+            return;
         }
+
+        setBanner({ kind: "error", text: result.error });
     };
 
     /**
@@ -362,6 +495,12 @@ export function CafeteriaTransactionForm({
 
         const safeDiscount = Number.isFinite(discount) ? discount : 0;
         const safeTotal = Number.isFinite(total) ? total : subtotal - safeDiscount;
+
+        // Only worth a line on the bill when a percentage was actually used.
+        const percentRow =
+            percentLabel !== ""
+                ? `        <div><span>Discount (%)</span><span>${escapeHtml(percentLabel)}</span></div>\n`
+                : "";
 
         const rows = lines
             .map((line) => {
@@ -391,6 +530,7 @@ export function CafeteriaTransactionForm({
         const tableNumberText = escapeHtml(tabData.table_number);
         const tableIdText = escapeHtml(tabData.table_id);
         const customerText = escapeHtml(customerName.trim() || "—");
+        const mobileText = escapeHtml(mobileNumber.trim() || "—");
 
         win.document.write(`<!doctype html>
 <html>
@@ -415,6 +555,7 @@ export function CafeteriaTransactionForm({
     <h1>Cafeteria Bill</h1>
     <p class="muted">Table ${tableNumberText} (${tableIdText})</p>
     <p class="muted">Customer: ${escapeHtml(customerType)} — ${customerText}</p>
+    <p class="muted">Mobile: ${mobileText}</p>
     <p class="muted">Printed: <span id="printed-at"></span></p>
     <table>
         <thead>
@@ -424,7 +565,7 @@ export function CafeteriaTransactionForm({
     </table>
     <div class="totals">
         <div><span>Subtotal</span><span>₹${subtotal.toLocaleString("en-IN")}</span></div>
-        <div><span>Discount</span><span>₹${safeDiscount.toLocaleString("en-IN")}</span></div>
+${percentRow}        <div><span>Discount</span><span>₹${safeDiscount.toLocaleString("en-IN")}</span></div>
         <div class="grand"><span>Total</span><span>₹${safeTotal.toLocaleString("en-IN")}</span></div>
     </div>
     <p class="muted" style="margin-top:24px;">Payment mode: ${escapeHtml(paymentMode)}</p>
@@ -438,15 +579,16 @@ export function CafeteriaTransactionForm({
     }
 
     return (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-4 py-3">
-                <h2 className="text-base font-semibold text-slate-800">
-                    Create/Update Cafeteria Transaction
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                    Fetch table by number, review/edit the open tab, then update via PUT /api/cafeteria/table.
-                </p>
-            </div>
+        <TransactionModal
+            title="Create/Update Cafeteria Transaction"
+            subtitle={
+                tabData
+                    ? `Table ${tabData.table_number} (${tabData.table_id})`
+                    : `Table ${initialTableNumber}`
+            }
+            busy={submitting}
+            onClose={onClose}
+        >
 
             {/* <form onSubmit={handleFetchTab} className="px-4 py-3 border-b border-slate-100">
                 <div className="flex flex-wrap items-end gap-3">
@@ -473,11 +615,19 @@ export function CafeteriaTransactionForm({
                 </div>
             </form> */}
 
-            {/* Rendered outside the form so the "completed" confirmation still
-                shows after the settled tab (and the form) is cleared. */}
+            {/* The tab arrives from a GET, so the modal opens on its header
+                alone for a moment; say so rather than showing an empty card. */}
+            {loadingTab && !tabData && (
+                <p className="px-5 py-6 text-xs text-slate-500">
+                    Loading the open tab…
+                </p>
+            )}
+
+            {/* Outside the scrolling form so a failed PUT's message sits under
+                the header instead of scrolling away with the lines. */}
             {banner && (
                 <p
-                    className={`mx-4 mt-4 rounded-lg border px-3 py-2 text-xs font-medium ${
+                    className={`mx-5 mt-4 rounded-lg border px-3 py-2 text-xs font-medium ${
                         banner.kind === "success"
                             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                             : "border-red-200 bg-red-50 text-red-700"
@@ -489,7 +639,7 @@ export function CafeteriaTransactionForm({
             )}
 
             {tabData && (
-                <form onSubmit={handleSubmit} className="px-4 py-4">
+                <form onSubmit={handleSubmit} className="max-h-[70vh] overflow-y-auto p-5">
                     <div className="grid gap-4 sm:grid-cols-2 mb-4">
                         <div>
                             <p className="text-xs text-slate-600">
@@ -502,7 +652,7 @@ export function CafeteriaTransactionForm({
                         </div>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-3">
                         <div>
                             <label htmlFor="customer-type" className={labelClass}>
                                 Customer type
@@ -530,6 +680,20 @@ export function CafeteriaTransactionForm({
                                 value={customerName}
                                 onChange={(event) => setCustomerName(event.target.value)}
                                 placeholder="Customer name (optional)"
+                                className={inputClass}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="mobile-number" className={labelClass}>
+                                Mobile number
+                            </label>
+                            <input
+                                id="mobile-number"
+                                type="tel"
+                                inputMode="tel"
+                                value={mobileNumber}
+                                onChange={(event) => setMobileNumber(event.target.value)}
+                                placeholder="Mobile number (optional)"
                                 className={inputClass}
                             />
                         </div>
@@ -677,16 +841,32 @@ export function CafeteriaTransactionForm({
 
                     <div className="grid gap-4 sm:grid-cols-3 mt-4">
                         <div>
+                            <label htmlFor="discount-percent" className={labelClass}>
+                                Discount (%)
+                            </label>
+                            <input
+                                id="discount-percent"
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="any"
+                                value={discountPercent}
+                                onChange={(event) => applyDiscountPercent(event.target.value)}
+                                placeholder="0"
+                                className={inputClass}
+                            />
+                        </div>
+                        <div>
                             <label htmlFor="discount" className={labelClass}>
-                                Discount applied
+                                Discount (₹)
                             </label>
                             <input
                                 id="discount"
                                 type="number"
                                 min={0}
                                 step="any"
-                                value={discountApplied}
-                                onChange={(event) => setDiscountApplied(event.target.value)}
+                                value={discountValue}
+                                onChange={(event) => applyDiscountAmount(event.target.value)}
                                 className={inputClass}
                             />
                         </div>
@@ -720,6 +900,12 @@ export function CafeteriaTransactionForm({
                             <span>
                                 <span className="text-slate-500">Discount:</span>{" "}
                                 <span className="font-semibold text-amber-700">₹{discount.toLocaleString("en-IN")}</span>
+                                {percentLabel !== "" && (
+                                    <span className="text-slate-500">
+                                        {" "}
+                                        ({percentLabel})
+                                    </span>
+                                )}
                             </span>
                             <span>
                                 <span className="text-slate-500">Total:</span>{" "}
@@ -755,6 +941,6 @@ export function CafeteriaTransactionForm({
                     </div>
                 </form>
             )}
-        </section>
+        </TransactionModal>
     );
 }

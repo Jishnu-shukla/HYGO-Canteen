@@ -13,7 +13,7 @@ import {
     PAITENTMENU_DAYS,
 } from "@/data/Menu/type";
 import type { MasterMenuItem } from "@/data/MasterMenu/type";
-import { LoaderCircle, X } from "lucide-react";
+import { LoaderCircle, Search, X } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 
 function Field({
@@ -72,8 +72,17 @@ export default function MenuUploadModal({
     const [portionSize, setPortionSize] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [search, setSearch] = useState("");
 
     const isPatient = menuType === "patient";
+
+    const filteredItems = useMemo(() => {
+        const term = search.trim().toLowerCase();
+        if (!term) return approvedItems;
+        return approvedItems.filter((item) =>
+            item.recipe_name.toLowerCase().includes(term)
+        );
+    }, [approvedItems, search]);
 
     const toggleDay = (day: MenuDay) => {
         setDays((current) =>
@@ -99,6 +108,15 @@ export default function MenuUploadModal({
             ...current,
             [id]: current[id] ?? String(item.price),
         }));
+    };
+
+    const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        if (filteredItems.length === 1) {
+            toggleItem(filteredItems[0]);
+            setSearch("");
+        }
     };
 
     const selectedCount = selectedIds.length;
@@ -313,8 +331,24 @@ export default function MenuUploadModal({
                                 Items
                             </span>
                             <span className="text-[11px] text-slate-400">
-                                {selectedCount} selected
+                                {selectedCount} selected • {filteredItems.length} showing
                             </span>
+                        </div>
+
+                        <div className="relative mb-2">
+                            <Search
+                                size={16}
+                                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                            />
+                            <input
+                                type="text"
+                                value={search}
+                                disabled={saving}
+                                onChange={(event) => setSearch(event.target.value)}
+                                onKeyDown={handleSearchKeyDown}
+                                placeholder="Search approved items by name and press Enter to select"
+                                className={`${inputClass} pl-9`}
+                            />
                         </div>
 
                         {approvedItems.length === 0 ? (
@@ -322,9 +356,13 @@ export default function MenuUploadModal({
                                 No approved master items yet. Approve items in Master
                                 Menu first.
                             </p>
+                        ) : filteredItems.length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-xs text-slate-400">
+                                No items match your search.
+                            </p>
                         ) : (
                             <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-2">
-                                {approvedItems.map((item) => {
+                                {filteredItems.map((item) => {
                                     const isSelected = selectedIds.includes(item.master_item_id);
 
                                     return (
@@ -410,9 +448,7 @@ export default function MenuUploadModal({
                                     Uploading
                                 </>
                             ) : (
-                                <>
-                                    Upload Menu
-                                </>
+                                <>Upload Menu</>
                             )}
                         </button>
                     </div>

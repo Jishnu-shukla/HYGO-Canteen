@@ -13,6 +13,20 @@
 export type AllergySeverity = "Mild" | "Moderate" | "Severe_Anaphylaxis";
 
 /**
+ * One allergy on a preference record: the allergen's free-text name paired with
+ * its own severity.
+ *
+ * Severity lives on the entry rather than the record, so a patient with both a
+ * mild intolerance-adjacent allergy and an anaphylactic one is representable
+ * without flattening the record to its worst value.
+ */
+export interface AllergyEntry {
+    /** Free-text allergen name, e.g. "Peanuts". */
+    name: string;
+    severity: AllergySeverity;
+}
+
+/**
  * One religious or dietary practice the patient follows.
  *
  * "Vegetarian" is the schema default and the implicit baseline the summary's
@@ -81,9 +95,10 @@ export interface GetAllergyPrefsQuery {
 /**
  * One row of the allergy-preference list.
  *
- * allergies, intolerances and religious_dietary_restrictions are the
- * clinical payload the table shows. uhid and patient_name are joined in from
- * Paitent so the row needs no second request.
+ * allergies and intolerances are the clinical payload the table shows, in the
+ * same array shapes the create body sends — each allergy carries its own
+ * severity, so the list has no record-level `severity` field. uhid and
+ * patient_name are joined in from Paitent so the row needs no second request.
  *
  * Deliberately absent: prescribed_by, logged_by, is_menu_default,
  * extra_notes and the timestamps. The first two are Staff audit fields, and
@@ -97,11 +112,10 @@ export interface AllergyPrefListItem {
     uhid: string;
     /** Joined from Paitent via patient_id. */
     patient_name: string;
-    /** Single free-text allergy, or "" when none is recorded. */
-    allergies: string;
-    /** Single free-text intolerance, or "" when none is recorded. */
-    intolerances: string;
-    severity: AllergySeverity;
+    /** One entry per allergen with its own severity; [] when none recorded. */
+    allergies: AllergyEntry[];
+    /** Free-text intolerances; [] when none recorded. */
+    intolerances: string[];
     /**
      * Empty string is possible only on pre-existing records; see the create
      * response.
@@ -152,20 +166,23 @@ export interface GetAllergyPrefsResponse {
  * middleware exists.
  *
  * Every field other than uhid is optional and falls back to the schema
- * default, so a record can be created as a bare "no known allergies" stub.
+ * default, so a bare { "uhid": "UHID-2026-0001" } creates a valid "nothing on
+ * record" row: allergies [], intolerances [], restrictions "Vegetarian" (the
+ * implicit baseline), is_menu_default false.
  */
 export interface CreateAllergyPrefBody {
     /** Patient's business ID, e.g. "UHID-2026-0001". */
     uhid: string;
     /** Display-only; accepted for UI symmetry and then ignored. */
     patient_name?: string;
-    /** Single free-text allergy, e.g. "Peanuts". Empty string means none. */
-    allergies?: string;
-    /** Single free-text intolerance, e.g. "Lactose". Empty string means none. */
-    intolerances?: string;
-    /** Defaults to "Mild" when omitted. */
-    severity?: AllergySeverity;
-    /** One restriction, or omit for "Vegetarian" (the schema default). */
+    /**
+     * Allergies with their per-allergy severity, e.g.
+     * [{ "name": "Peanuts", "severity": "Mild" }]. Empty list means none.
+     */
+    allergies?: AllergyEntry[];
+    /** Free-text intolerances, e.g. ["Lactose"]. Empty list means none. */
+    intolerances?: string[];
+    /** Defaults to "Vegetarian", the implicit baseline, when omitted. */
     religious_dietary_restrictions?: ReligiousDietaryRestriction;
     /** Free-text clinician note. */
     extra_notes?: string;
@@ -181,9 +198,10 @@ export interface CreateAllergyPrefResponse {
     /** Raw Mongo id of the patient. */
     patient_id: string;
     patient_name: string;
-    allergies: string;
-    intolerances: string;
-    severity: AllergySeverity;
+    /** Each allergy paired with its own severity. */
+    allergies: AllergyEntry[];
+    /** Free-text intolerances; [] when none recorded. */
+    intolerances: string[];
     religious_dietary_restrictions: ReligiousDietaryRestriction | "";
     extra_notes: string;
     is_menu_default: boolean;
@@ -221,15 +239,14 @@ export interface UpdateAllergyPrefParams {
  * - prescribed_by / logged_by  stay server/auth-owned; accepting them would
  *                          let a client forge who prescribed a record.
  *
- * allergies / intolerances / extra_notes accept "" to clear the value, which
- * is what the schema stores for an unset field.
+ * allergies / intolerances accept [] to clear the value; extra_notes accepts ""
+ * to clear it, which is what the schema stores for an unset field.
  */
 export interface UpdateAllergyPrefBody {
-    /** Single free-text allergy, e.g. "Peanuts". "" clears it. */
-    allergies?: string;
-    /** Single free-text intolerance, e.g. "Lactose". "" clears it. */
-    intolerances?: string;
-    severity?: AllergySeverity;
+    /** Full allergy list with per-entry severity; [] clears it. */
+    allergies?: AllergyEntry[];
+    /** Full intolerance list; [] clears it. */
+    intolerances?: string[];
     religious_dietary_restrictions?: ReligiousDietaryRestriction;
     /** Free-text clinician note. "" clears it. */
     extra_notes?: string;

@@ -24,8 +24,18 @@ type IngredientDraft = {
 const EMPTY_INGREDIENT: IngredientDraft = {
     item_id: "",
     quantity: "",
-    unit_of_measure: "g",
+    // Autofilled from the inventory item once one is selected.
+    unit_of_measure: "",
 };
+
+/**
+ * The unit comes from the inventory item, which may hold a value outside
+ * UNITS (e.g. "liters", "dozen") — keep it in the list so the read-only
+ * select always renders the autofilled value as a selected option.
+ */
+function unitOptions(unit: string): string[] {
+    return unit && !UNITS.includes(unit) ? [...UNITS, unit] : UNITS;
+}
 
 
 function Field({
@@ -480,11 +490,22 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                                             value={row.item_id}
                                             disabled={saving}
                                             aria-label="Ingredient"
-                                            onChange={(event) =>
+                                            onChange={(event) => {
+                                                const selectedId =
+                                                    event.target.value;
+                                                const selectedItem =
+                                                    items.find(
+                                                        (item) =>
+                                                            item.item_id ===
+                                                            selectedId
+                                                    );
                                                 updateIngredient(index, {
-                                                    item_id: event.target.value,
-                                                })
-                                            }
+                                                    item_id: selectedId,
+                                                    unit_of_measure:
+                                                        selectedItem?.unit_of_measure ??
+                                                        "",
+                                                });
+                                            }}
                                             className="form-input appearance-none pr-9"
                                         >
                                             <option value="">
@@ -525,29 +546,23 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                                         />
                                     </div>
 
-                                    <div className="relative w-24 shrink-0">
+                                    <div className="w-24 shrink-0">
                                         <select
                                             value={row.unit_of_measure}
-                                            disabled={saving}
+                                            disabled
+                                            title="Comes from the inventory item"
                                             aria-label="Unit of measure"
-                                            onChange={(event) =>
-                                                updateIngredient(index, {
-                                                    unit_of_measure:
-                                                        event.target.value,
-                                                })
-                                            }
-                                            className="form-input appearance-none pr-8"
+                                            className="form-input appearance-none"
                                         >
-                                            {UNITS.map((value) => (
+                                            <option value="">—</option>
+                                            {unitOptions(
+                                                row.unit_of_measure
+                                            ).map((value) => (
                                                 <option key={value} value={value}>
                                                     {value}
                                                 </option>
                                             ))}
                                         </select>
-                                        <ChevronDown
-                                            size={16}
-                                            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-                                        />
                                     </div>
 
                                     <button
@@ -800,6 +815,12 @@ export default function CreateRecipeModal({ setRecipes, onClose }: { setRecipes:
                     color: rgb(51 65 85);
                     outline: none;
                     transition: all 150ms ease;
+                }
+
+                .form-input:disabled {
+                    cursor: not-allowed;
+                    opacity: 0.8;
+                    background: rgb(241 245 249);
                 }
 
                 .form-input::placeholder {

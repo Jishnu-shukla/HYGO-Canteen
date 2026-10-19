@@ -6,6 +6,7 @@ import RoleProvider from "@/context/RoleContext";
 import RoleGuard from "@/components/Role/RoleGuard";
 import Sidebar from "@/components/Sidebar/Sidebar";
 import AppHeader from "@/components/Header/AppHeader";
+import NumberInputWheelGuard from "@/components/NumberInput/NumberInputWheelGuard";
 import ToastProvider from "@/components/Toast/ToastProvider";
 import { SIDEBAR_TOGGLE_ID } from "@/routes";
 
@@ -101,6 +102,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <RoleGuard>{children}</RoleGuard>
               </div>
             </div>
+
+            {/* Number fields must not step on scroll, anywhere in the app. */}
+            <NumberInputWheelGuard />
 
             {/* Global toast stack, fed by the API error interceptor. */}
             <ToastProvider />

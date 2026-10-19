@@ -116,8 +116,8 @@ export default function CafeteriaPage() {
 
             <CafeteriaSummaryCards summary={summary} loading={loading} />
 
-            {/* Picking an Occupied table hands it to the form below rather
-                than routing away, so the tab is settled on this page. */}
+            {/* Picking an Occupied table opens its settle modal instead of
+                routing away, so the tab is settled on this page. */}
             <TableCards
                 tables={tables}
                 onOccupiedSelect={(table) => {
@@ -126,13 +126,14 @@ export default function CafeteriaPage() {
                 }}
             />
 
-            <div className="mt-4">
+            {selectedTable && (
                 <CafeteriaTransactionForm
                     key={formKey}
-                    initialTableNumber={selectedTable?.table_number ?? ""}
+                    initialTableNumber={selectedTable.table_number}
                     onUpdated={refreshSummary}
+                    onClose={() => setSelectedTable(null)}
                 />
-            </div>
+            )}
         </main>
     );
 }

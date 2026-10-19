@@ -1,19 +1,16 @@
 "use client";
 
 import type {
+    AllergyEntry,
     AllergyPrefListItem,
-    AllergySeverity,
     ReligiousDietaryRestriction,
     UpdateAllergyPrefBody,
     UpdateAllergyPrefResponse,
 } from "@/data/AllergyPref/type";
-import {
-    ALLERGY_SEVERITY,
-    RELIGIOUS_DIETARY_RESTRICTION,
-} from "@/data/AllergyPref/type";
+import { RELIGIOUS_DIETARY_RESTRICTION } from "@/data/AllergyPref/type";
 import { LoaderCircle, Save, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { SEVERITY_LABEL } from "./allergyPrefLabels";
+import { AllergyTagField, IntoleranceTagField } from "./AllergyTagFields";
 
 const inputClass =
     "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:border-amber-300 focus:bg-white focus:ring-2 focus:ring-amber-100 disabled:opacity-60";
@@ -55,6 +52,26 @@ function Select({
     );
 }
 
+/** Trimmed, blank-free form — what is sent and what changes are judged against. */
+const normalizeAllergies = (rows: AllergyEntry[]): AllergyEntry[] =>
+    rows
+        .map((row) => ({ name: row.name.trim(), severity: row.severity }))
+        .filter((row) => row.name !== "");
+
+/** Trimmed, blank-free form of the intolerance list. */
+const normalizeList = (rows: string[]): string[] =>
+    rows.map((row) => row.trim()).filter((row) => row !== "");
+
+const sameAllergies = (a: AllergyEntry[], b: AllergyEntry[]) =>
+    a.length === b.length &&
+    a.every(
+        (row, index) =>
+            row.name === b[index].name && row.severity === b[index].severity
+    );
+
+const sameList = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((item, index) => item === b[index]);
+
 /**
  * Partial update of one preference's clinical fields.
  *
@@ -63,10 +80,13 @@ function Select({
  * the list response does not carry them — the update is partial, so leaving
  * them out preserves the stored values instead of blanking them.
  *
- * Only fields the dietitian actually changed are sent, which keeps a record
- * whose `religious_dietary_restrictions` is an undeclared value (the live data
- * contains "Non-Vegetarian") from being rewritten to something else on an
- * unrelated edit.
+ * Allergies and intolerances are edited with the same capsule fields the create
+ * form uses — Enter commits a value to a capsule, hovering one offers its
+ * remove button — so both lists stay compact and sit side by side. [] clears
+ * either field. Only fields the dietitian actually changed are sent, which
+ * keeps a record whose `religious_dietary_restrictions` is an undeclared value
+ * (the live data contains "Non-Vegetarian") from being rewritten to something
+ * else on an unrelated edit.
  */
 export default function EditAllergyPrefModal({
     pref,
@@ -80,9 +100,12 @@ export default function EditAllergyPrefModal({
     ) => Promise<UpdateAllergyPrefResponse>;
     onClose: () => void;
 }) {
-    const [allergies, setAllergies] = useState(pref.allergies);
-    const [intolerances, setIntolerances] = useState(pref.intolerances);
-    const [severity, setSeverity] = useState<AllergySeverity>(pref.severity);
+    const [allergies, setAllergies] = useState<AllergyEntry[]>([
+        ...pref.allergies,
+    ]);
+    const [intolerances, setIntolerances] = useState<string[]>([
+        ...pref.intolerances,
+    ]);
     const [restriction, setRestriction] = useState<string>(
         pref.religious_dietary_restrictions
     );
@@ -109,15 +132,18 @@ export default function EditAllergyPrefModal({
 
         const body: UpdateAllergyPrefBody = {};
 
-        const allergy = allergies.trim();
-        if (allergy !== pref.allergies) body.allergies = allergy;
-
-        const intolerance = intolerances.trim();
-        if (intolerance !== pref.intolerances) {
-            body.intolerances = intolerance;
+        // Compared against the trimmed, blank-free form of the stored value so
+        // reformatting (a stray space the server happened to keep) does not
+        // read as a change the dietitian never made.
+        const nextAllergies = normalizeAllergies(allergies);
+        if (!sameAllergies(nextAllergies, normalizeAllergies(pref.allergies))) {
+            body.allergies = nextAllergies;
         }
 
-        if (severity !== pref.severity) body.severity = severity;
+        const nextIntolerances = normalizeList(intolerances);
+        if (!sameList(nextIntolerances, pref.intolerances)) {
+            body.intolerances = nextIntolerances;
+        }
 
         // "" is not a legal update value; an unchanged blank stays blank, and a
         // changed one is always a declared option.
@@ -195,85 +221,57 @@ export default function EditAllergyPrefModal({
                         </p>
                     </div>
 
+                    {/* The two collections side by side, matching the create
+                        form: capsules keep them to a few lines at most. */}
                     <div className="grid gap-4 sm:grid-cols-2">
                         <Field
-                            label="Allergy"
-                            hint="Leave blank to clear it."
+                            label="Allergies"
+                            hint="Type a name, pick its severity, press Enter."
                         >
-                            <input
-                                type="text"
+                            <AllergyTagField
                                 value={allergies}
+                                onChange={setAllergies}
                                 disabled={saving}
-                                onChange={(event) =>
-                                    setAllergies(event.target.value)
-                                }
-                                placeholder="Peanuts"
-                                className={inputClass}
                             />
                         </Field>
 
                         <Field
-                            label="Intolerance"
-                            hint="Leave blank to clear it."
+                            label="Intolerances"
+                            hint="Type a name, press Enter."
                         >
-                            <input
-                                type="text"
+                            <IntoleranceTagField
                                 value={intolerances}
+                                onChange={setIntolerances}
                                 disabled={saving}
-                                onChange={(event) =>
-                                    setIntolerances(event.target.value)
-                                }
-                                placeholder="Lactose"
-                                className={inputClass}
                             />
                         </Field>
 
-                        <Field
-                            label="Severity"
-                            hint="How urgently the kitchen must treat this."
-                        >
-                            <Select
-                                value={severity}
-                                disabled={saving}
-                                onChange={(event) =>
-                                    setSeverity(
-                                        event.target.value as AllergySeverity
-                                    )
-                                }
+                        <div className="sm:col-span-2">
+                            <Field
+                                label="Religious / Dietary restriction"
+                                hint="Applied to the patient's menu."
                             >
-                                {ALLERGY_SEVERITY.map((option) => (
-                                    <option key={option} value={option}>
-                                        {SEVERITY_LABEL[option]}
-                                    </option>
-                                ))}
-                            </Select>
-                        </Field>
+                                <Select
+                                    value={restriction}
+                                    disabled={saving}
+                                    onChange={(event) =>
+                                        setRestriction(event.target.value)
+                                    }
+                                >
+                                    {/* Present only while the stored value is
+                                        blank, so the form does not imply a
+                                        change the dietitian never made. */}
+                                    {pref.religious_dietary_restrictions ===
+                                        "" && <option value="">Not set</option>}
 
-                        <Field
-                            label="Religious / Dietary restriction"
-                            hint="Applied to the patient's menu."
-                        >
-                            <Select
-                                value={restriction}
-                                disabled={saving}
-                                onChange={(event) =>
-                                    setRestriction(event.target.value)
-                                }
-                            >
-                                {/* Present only while the stored value is
-                                    blank, so the form does not imply a change
-                                    the dietitian never made. */}
-                                {pref.religious_dietary_restrictions === "" && (
-                                    <option value="">Not set</option>
-                                )}
-
-                                {restrictionOptions.map((option) => (
-                                    <option key={option} value={option}>
-                                        {option}
-                                    </option>
-                                ))}
-                            </Select>
-                        </Field>
+                                    {restrictionOptions.map((option) => (
+                                        <option key={option} value={option}>
+                                            {option}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </Field>
+                        </div>
                     </div>
 
                     {error && (

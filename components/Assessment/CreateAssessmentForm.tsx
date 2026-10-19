@@ -92,6 +92,13 @@ const NUMERIC_FIELDS = [
     },
 ] as const;
 
+/**
+ * BMI is displayed immediately after the two measurements it is computed
+ * from — weight and height, the first NUMERIC_FIELDS entries above. The
+ * numeric controls are rendered around that split point.
+ */
+const BMI_AFTER_COUNT = 2;
+
 type NumericField = (typeof NUMERIC_FIELDS)[number];
 type NumericKey = NumericField["key"];
 
@@ -309,6 +316,41 @@ export default function CreateAssessmentForm({
         }
     };
 
+    // Split out so the weight and height controls can be followed by the BMI
+    // they produce, without duplicating the control markup.
+    const renderNumericField = (field: NumericField) => {
+        const fieldError = fieldErrors[field.key];
+
+        return (
+            <Field
+                key={field.key}
+                label={field.label}
+                hint={field.hint}
+                error={fieldError}
+            >
+                <input
+                    type="number"
+                    inputMode="decimal"
+                    step={field.step}
+                    min={field.min}
+                    max={field.max ?? undefined}
+                    value={numeric[field.key]}
+                    disabled={saving}
+                    onChange={(event) =>
+                        setNumeric((current) => ({
+                            ...current,
+                            [field.key]: event.target.value,
+                        }))
+                    }
+                    aria-invalid={Boolean(fieldError)}
+                    className={`${inputClass} ${
+                        fieldError ? errorInputClass : ""
+                    }`}
+                />
+            </Field>
+        );
+    };
+
     return (
         <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
@@ -394,6 +436,12 @@ export default function CreateAssessmentForm({
                     </Select>
                 </Field>
 
+                {/* BMI sits directly after the weight and height it is
+                    derived from, so the figure is read next to its inputs. */}
+                {NUMERIC_FIELDS.slice(0, BMI_AFTER_COUNT).map(
+                    renderNumericField
+                )}
+
                 <Field label="BMI" hint={bmiHint}>
                     <div className="relative">
                         <input
@@ -420,38 +468,7 @@ export default function CreateAssessmentForm({
                     </div>
                 </Field>
 
-                {NUMERIC_FIELDS.map((field) => {
-                    const fieldError = fieldErrors[field.key];
-
-                    return (
-                        <Field
-                            key={field.key}
-                            label={field.label}
-                            hint={field.hint}
-                            error={fieldError}
-                        >
-                            <input
-                                type="number"
-                                inputMode="decimal"
-                                step={field.step}
-                                min={field.min}
-                                max={field.max ?? undefined}
-                                value={numeric[field.key]}
-                                disabled={saving}
-                                onChange={(event) =>
-                                    setNumeric((current) => ({
-                                        ...current,
-                                        [field.key]: event.target.value,
-                                    }))
-                                }
-                                aria-invalid={Boolean(fieldError)}
-                                className={`${inputClass} ${
-                                    fieldError ? errorInputClass : ""
-                                }`}
-                            />
-                        </Field>
-                    );
-                })}
+                {NUMERIC_FIELDS.slice(BMI_AFTER_COUNT).map(renderNumericField)}
 
                 <Field
                     label="Clinical notes"

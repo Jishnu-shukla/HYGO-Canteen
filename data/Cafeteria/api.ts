@@ -147,7 +147,13 @@ export type UpdateTableOrderResult =
     | { ok: false; error: string };
 
 /**
- * PUT /api/cafeteria/table — update the open transaction for a table.
+ * PUT /api/cafeteria/table — replace the open tab of a table and settle it.
+ *
+ * table_id is verification-only and amounts travel as the client computed
+ * them (see the body contract); the service additionally forces
+ * payment_status to "Paid" and draws stock for the written lines, so a line
+ * the store room cannot cover comes back as a 409 with nothing moved. The
+ * success envelope is the POST shape — this result carries it unchanged.
  */
 export async function updateTableTransactionApi(
     body: CreateCafeteriaTransactionBody

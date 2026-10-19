@@ -1,8 +1,16 @@
 "use client";
 
 import { getTableTransactionDetailsApi } from "@/data/Cafeteria/api";
-import type { GetTableTransactionDetails } from "@/data/Cafeteria/type";
+import type {
+    GetTableTransactionDetailsItem,
+} from "@/data/Cafeteria/type";
 import type { TableDetails } from "@/data/Tables/type";
+import {
+    clearKotSnapshot,
+    diffKotItems,
+    loadKotSnapshot,
+    saveKotSnapshot,
+} from "@/components/Cafeteria/kotSnapshot";
 import { showErrorToast } from "@/utils/toast";
 import { Armchair, ChefHat, Download, LoaderCircle, Printer, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -30,12 +38,18 @@ function svgMarkup(svg: SVGSVGElement): string {
  * Print-ready Kitchen Order Ticket for a table's open tab: table number, time
  * and the item lines with quantities. Deliberately no prices — this is the
  * kitchen's copy, while the bill is the customer's settled copy.
+ *
+ * `items` is what THIS ticket covers: the whole tab on the first KOT, only
+ * the not-yet-sent lines on later ones. The footer says which it was, so the
+ * kitchen can tell a fresh table from a top-up at a glance.
  */
 function buildKotDocument(
     table: TableDetails,
-    tab: GetTableTransactionDetails
+    items: GetTableTransactionDetailsItem[],
+    kotNumber: number,
+    isFirstKot: boolean
 ): string {
-    const rows = tab.items_purchased
+    const rows = items
         .map((item) => {
             const name = escapeHtml(item.recipe_name || item.item_id || "Item");
 
@@ -47,12 +61,15 @@ function buildKotDocument(
 
     const number = escapeHtml(table.table_number);
     const placedAt = escapeHtml(new Date().toLocaleString("en-IN"));
+    const note = isFirstKot
+        ? "First order"
+        : "New items only — earlier lines already in the kitchen";
 
     return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
-<title>KOT — Table ${number}</title>
+<title>KOT #${kotNumber} — Table ${number}</title>
 <style>
     * { box-sizing: border-box; }
     body { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; color: #0f172a; margin: 0; padding: 24px; }
@@ -63,17 +80,17 @@ function buildKotDocument(
     td { font-size: 13px; padding: 6px 0; vertical-align: top; border-bottom: 1px dashed #cbd5e1; }
     td.qty { width: 48px; font-weight: 700; white-space: nowrap; }
     .total { margin-top: 14px; font-size: 12px; font-weight: 700; }
+    .note { margin-top: 4px; font-size: 11px; color: #475569; }
     @media print { body { padding: 8px; } }
 </style>
 </head>
 <body>
     <h1>KITCHEN ORDER TICKET</h1>
     <p class="sub">Cafeteria · ${escapeHtml(table.table_id)}</p>
-    <div class="meta"><span>Table ${number}</span><span>${placedAt}</span></div>
+    <div class="meta"><span>Table ${number} · KOT #${kotNumber}</span><span>${placedAt}</span></div>
     <table><tbody>${rows}</tbody></table>
-    <p class="total">${tab.items_purchased.length} line${
-        tab.items_purchased.length === 1 ? "" : "s"
-    }</p>
+    <p class="total">${items.length} line${items.length === 1 ? "" : "s"}</p>
+    <p class="note">${note}</p>
 </body>
 </html>`;
 }
@@ -128,16 +145,41 @@ export function TableCards({
             }
 
             if (tab.items_purchased.length === 0) {
+                // Tab is gone (settled or never opened): forget any printed
+                // history so the next order starts a fresh KOT series.
+                clearKotSnapshot(table.table_id);
                 win.close();
                 showErrorToast(`No open order on table ${table.table_number}.`);
                 return;
             }
 
+            // First KOT of this tab prints everything; every later KOT prints
+            // only the lines (and excess quantities) not yet sent to the
+            // kitchen, by diffing the full API response against the snapshot.
+            const snapshot = loadKotSnapshot(table.table_id);
+            const newItems = diffKotItems(snapshot, tab.items_purchased);
+
+            if (newItems.length === 0) {
+                win.close();
+                showErrorToast(
+                    `No new items on table ${table.table_number} since the last KOT.`
+                );
+                return;
+            }
+
+            const kotNumber = (snapshot?.kotNumber ?? 0) + 1;
+
             win.document.open();
-            win.document.write(buildKotDocument(table, tab));
+            win.document.write(
+                buildKotDocument(table, newItems, kotNumber, !snapshot)
+            );
             win.document.close();
             win.focus();
             window.setTimeout(() => win.print(), 300);
+
+            // Remember the full tab (not just the new lines) so the next KOT
+            // compares against everything the kitchen has already seen.
+            saveKotSnapshot(table.table_id, kotNumber, tab.items_purchased);
         } catch (error) {
             console.log(error);
             win.close();
