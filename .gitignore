@@ -45,3 +45,6 @@ next-env.d.ts
 .codex
 .gemini
 .impeccable
+
+#auth service 
+hms-auth-service

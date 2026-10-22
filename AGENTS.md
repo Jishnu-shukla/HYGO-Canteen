@@ -35,6 +35,18 @@ works without an env file.
 - Deployment: set `NEXT_PUBLIC_API_BASE_URL` in the host's environment (see
   `.env.example`). It is read at build time, so rebuild after changing it.
 
+## Auth
+
+- Login posts to `hms-auth-service` (`POST /auth/login`); its base URL comes
+  from `NEXT_PUBLIC_AUTH_API_BASE_URL` (see `data/authApiBaseUrl.ts`), default
+  `http://localhost:8091`.
+- Tokens + the session role live in localStorage (`utils/authSession.ts`); the
+  role is mirrored into `canteen.role` so `RoleContext`, the sidebar and
+  `RoleGuard` keep their single source of truth. `AuthGate` redirects
+  signed-out visitors to `/login`.
+- Dev accounts come from `npm run seed:canteen-users` in `hms-auth-service`
+  (one per role in `Roles.ts`; password `Hygo@1234`).
+
 ## Gotchas
 
 - `deleteInventoryItemApi` uses HTTP PUT (not DELETE) — matches backend expectation

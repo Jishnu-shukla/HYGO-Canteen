@@ -1,11 +1,12 @@
 "use client";
 
 import { LogOut, Search, UserCircle } from "lucide-react";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { ROLES, isRole } from "../../Roles";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useRoleContext } from "../../context/RoleContext";
 import { SIDEBAR_ROUTES } from "../../routes";
+import { clearAuthSession, getAuthSession } from "@/utils/authSession";
+import type { CanteenSession } from "@/data/Auth/api";
 
 /**
  * Resolves the sidebar section + page for the current route, so the header
@@ -31,10 +32,19 @@ function findPageContext(pathname: string): {
  */
 export default function AppHeader() {
     const pathname = usePathname() ?? "/";
+    const router = useRouter();
     const { section, page } = findPageContext(pathname);
 
     const [search, setSearch] = useState("");
-    const { role, setRole } = useRoleContext();
+    const { role } = useRoleContext();
+
+    // The signed-in session only exists client-side; render nothing for this
+    // block until it is read so server and first client render agree.
+    const [session, setSession] = useState<CanteenSession | null>(null);
+
+    useEffect(() => {
+        setSession(getAuthSession());
+    }, []);
 
     const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -42,7 +52,10 @@ export default function AppHeader() {
     };
 
     const handleLogout = () => {
-        // TODO: Wire logout flow when auth is integrated
+        // Drops the tokens and the mirrored role, then sends the user back
+        // to the login screen; AuthGate keeps every other route closed.
+        clearAuthSession();
+        router.replace("/login");
     };
 
     return (
@@ -83,31 +96,24 @@ export default function AppHeader() {
                         />
                     </form>
 
-                    {/* User profile + role picker */}
-                    <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 sm:px-3">
+                    {/* User identity — the role comes from the signed-in
+                        session (set at login), so it is displayed, not
+                        picked: switching roles here would let anyone reach
+                        screens their account was never granted. */}
+                    <div
+                        title={session ? session.email : undefined}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 sm:px-3"
+                    >
                         <UserCircle size={20} className="text-orange-600 sm:size-5" />
 
-                        <label htmlFor="role-select" className="sr-only">
-                            Role
-                        </label>
-
-                        <select
-                            id="role-select"
-                            value={role}
-                            onChange={(event) => {
-                                if (isRole(event.target.value)) {
-                                    setRole(event.target.value);
-                                }
-                            }}
-                            title="Role"
-                            className="cursor-pointer rounded-full bg-transparent text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                        >
-                            {ROLES.map((option) => (
-                                <option key={option} value={option}>
-                                    {option}
-                                </option>
-                            ))}
-                        </select>
+                        <span className="flex flex-col leading-tight">
+                            <span className="max-w-[120px] truncate text-xs font-semibold text-slate-700 sm:max-w-[180px]">
+                                {session?.displayName ?? "…"}
+                            </span>
+                            <span className="text-[10px] font-medium text-slate-400">
+                                {role}
+                            </span>
+                        </span>
                     </div>
 
                     {/* Logout */}

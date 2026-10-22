@@ -1,16 +1,25 @@
 import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type { CreateRecipeBody, RecipeItem, UpdateRecipeBody } from "./type";
 
-export async function getAllRecipesApi() {
+/**
+ * GET /api/recipe — every recipe.
+ *
+ * Always resolves to an array. A failed request (e.g. 401 before login) or an
+ * unexpected payload yields [] instead of null, so the context invariant
+ * `recipes: RecipeItem[]` holds and the page can render an empty state rather
+ * than crash on `recipes.length`.
+ */
+export async function getAllRecipesApi(): Promise<RecipeItem[]> {
     try {
         const data = await fetch(`${API_BASE_URL}/recipe`);
         const jsonData = await data.json();
         console.log(jsonData);
-        return jsonData.data;
+        return Array.isArray(jsonData?.data) ? jsonData.data : [];
     } catch (error) {
         console.log(error);
+        return [];
     }
-} 
+}
 
 export async function createRecipeApi(
     recipe: CreateRecipeBody
