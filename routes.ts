@@ -51,6 +51,12 @@ export const SIDEBAR_ROUTES: SidebarSection[] = [
         section: "Clinical Nutrition",
         items: [
             {
+                name: "Patients",
+                path: "/patients",
+                description:
+                    "The admitted-patient roster behind every diet, allergy and delivery record.",
+            },
+            {
                 name: "Nutritional Assessments",
                 path: "/assessments",
                 description: "Capture screening, anthropometrics and malnutrition scores.",

@@ -18,6 +18,7 @@ export type ActionLabel = {
 
 export const ACTION_LABELS: Record<ActionId, ActionLabel> = {
     viewDashboard: { label: "View dashboard", screen: "Dashboard" },
+    viewPatients: { label: "View patients", screen: "Patients" },
     manageAssessments: {
         label: "Manage assessments",
         screen: "Nutritional Assessments",

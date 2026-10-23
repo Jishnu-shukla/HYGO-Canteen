@@ -44,6 +44,7 @@ export const DEFAULT_ROLE: Role = "Admin";
  */
 export const ACTIONS = [
     "viewDashboard",
+    "viewPatients",
     "manageAssessments",
     "changePatientDiet",
     "manageAllergens",
@@ -102,6 +103,11 @@ export const ROLE_ACTIONS: Record<
         Nurse: "yes",
         "Store Keeper": "yes",
         Cashier: "yes",
+    },
+    // Patients — "/patients"
+    viewPatients: {
+        Dietitian: "yes",
+        Nurse: "yes",
     },
     // Nutritional Assessments — "/assessments"
     manageAssessments: {
@@ -211,6 +217,7 @@ export const ROLE_ACTIONS: Record<
  */
 export const SCREEN_ACTIONS: Record<string, readonly ActionId[]> = {
     "/": ["viewDashboard"],
+    "/patients": ["viewPatients"],
     "/assessments": ["manageAssessments"],
     "/diet-plan": ["changePatientDiet"],
     "/allergens": ["manageAllergens"],

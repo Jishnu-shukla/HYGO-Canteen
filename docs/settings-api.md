@@ -15,8 +15,9 @@ POST {API_BASE_URL}/rbac/permissions/reset
 ```
 
 Requests carry `Authorization: Bearer <accessToken>`. The token is attached by
-the global fetch interceptor (`utils/authFetchInterceptor.ts`), which also
-refreshes it once on a 401 and replays the request.
+the global fetch interceptor (`utils/authFetchInterceptor.ts`), which refreshes
+it shortly before its `exp` claim and replays the request once if it still
+comes back 401.
 
 ## The envelope
 

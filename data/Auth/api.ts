@@ -108,17 +108,30 @@ export default async function loginApi(
     };
 }
 
+/** Why a refresh could not produce a new token pair. */
+export type RefreshAuthFailure =
+    /** The service refused the refresh token: the session is genuinely over. */
+    | "rejected"
+    /** The service could not be reached or failed transiently: keep the session. */
+    | "unreachable";
+
+export type RefreshAuthResult =
+    | { ok: true; tokens: { accessToken: string; refreshToken: string } }
+    | { ok: false; reason: RefreshAuthFailure };
+
 /**
- * Exchanged a stored refresh token for a fresh access + refresh token pair.
+ * Exchanges a stored refresh token for a fresh access + refresh token pair.
  *
- * Called by the global fetch interceptor (utils/authFetchInterceptor.ts) when
- * a backend request comes back 401 because the access token expired. Returns
- * null when the refresh token is missing or rejected, which means the session
- * is genuinely over and the user must sign in again.
+ * Called by the global fetch interceptor (utils/authFetchInterceptor.ts) just
+ * before the access token expires, and as a fallback when a backend request
+ * comes back 401. The two failure kinds are kept apart on purpose: a
+ * 400/401/403 means the refresh token itself is dead (sign out), while a
+ * network failure or a 5xx is a blip (keep the session and try again rather
+ * than logging the user out over it).
  */
 export async function refreshAuthApi(
     refreshToken: string
-): Promise<{ accessToken: string; refreshToken: string } | null> {
+): Promise<RefreshAuthResult> {
     let response: Response;
 
     try {
@@ -128,10 +141,16 @@ export async function refreshAuthApi(
             body: JSON.stringify({ refreshToken }),
         });
     } catch {
-        // Network failure reaching the auth service — treated as "could not
-        // refresh", so the caller keeps the session and surfaces the original
-        // error rather than signing the user out over a blip.
-        return null;
+        return { ok: false, reason: "unreachable" };
+    }
+
+    if (!response.ok) {
+        const rejected =
+            response.status === 400 ||
+            response.status === 401 ||
+            response.status === 403;
+
+        return { ok: false, reason: rejected ? "rejected" : "unreachable" };
     }
 
     const json: RefreshResponse | null = await response.json().catch(() => null);
@@ -139,9 +158,12 @@ export async function refreshAuthApi(
     const accessToken = json?.data?.accessToken;
     const nextRefreshToken = json?.data?.refreshToken;
 
-    if (!response.ok || !json?.success || !accessToken || !nextRefreshToken) {
-        return null;
+    if (!json?.success || !accessToken || !nextRefreshToken) {
+        return { ok: false, reason: "rejected" };
     }
 
-    return { accessToken, refreshToken: nextRefreshToken };
+    return {
+        ok: true,
+        tokens: { accessToken, refreshToken: nextRefreshToken },
+    };
 }

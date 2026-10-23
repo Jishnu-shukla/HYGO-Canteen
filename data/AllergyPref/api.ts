@@ -20,7 +20,10 @@ import type {
  * scalar shape the server has been observed sending: `allergies: "Penuts"`,
  * `intolerances: "Lactos"` and a record-level `severity`.
  */
-type RawAllergyPrefRow = Omit<AllergyPrefListItem, "allergies" | "intolerances"> & {
+export type RawAllergyPrefRow = Omit<
+    AllergyPrefListItem,
+    "allergies" | "intolerances"
+> & {
     allergies?: unknown;
     intolerances?: unknown;
     severity?: unknown;
@@ -86,8 +89,15 @@ function normalizeIntolerances(value: unknown): string[] {
     return parts.map((item) => String(item).trim()).filter((item) => item !== "");
 }
 
-/** Pins one wire row to the array-shaped contract every consumer expects. */
-function normalizeAllergyPrefRow(row: RawAllergyPrefRow): AllergyPrefListItem {
+/**
+ * Pins one wire row to the array-shaped contract every consumer expects.
+ *
+ * Exported because GET /api/patients/:uhid reuses the same list-row shape and
+ * can therefore carry the same legacy scalar values.
+ */
+export function normalizeAllergyPrefRow(
+    row: RawAllergyPrefRow
+): AllergyPrefListItem {
     return {
         ...row,
         allergies: normalizeAllergies(row.allergies, row.severity),

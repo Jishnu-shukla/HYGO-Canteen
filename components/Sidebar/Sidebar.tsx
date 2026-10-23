@@ -17,6 +17,7 @@ import {
     Table2,
     TriangleAlert,
     Truck,
+    UsersRound,
     Utensils,
     Wrench,
     X,
@@ -30,6 +31,7 @@ import { useRoleContext } from "../../context/RoleContext";
 // 1. Map route names to Lucide Icon components
 export const ICON_MAP: Record<string, LucideIcon> = {
     "Dashboard": LayoutDashboard,
+    "Patients": UsersRound,
     "Nutritional Assessments": NotepadText,
     "Diet Plan Builder": Wrench,
     "Allergen & Preference": TriangleAlert,
