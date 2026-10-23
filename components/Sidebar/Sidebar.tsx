@@ -12,6 +12,7 @@ import {
     Package2,
     ShieldCheck,
     ShoppingBag,
+    SlidersHorizontal,
     Soup,
     Table2,
     TriangleAlert,
@@ -22,8 +23,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getAccessibleSections } from "../../Roles";
 import { SIDEBAR_TOGGLE_ID, type RouteItem } from "../../routes";
+import { useAccessControl } from "../../context/AccessControlContext";
 import { useRoleContext } from "../../context/RoleContext";
 
 // 1. Map route names to Lucide Icon components
@@ -45,6 +46,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
     "Recipes": Soup,
     "Menu": ClipboardList,
     "Master Menu": ListOrdered,
+    "Settings": SlidersHorizontal,
 };
 
 interface SidebarProps {
@@ -74,9 +76,24 @@ export default function Sidebar({
     const currentPath = activePath ?? pathname ?? "/";
 
     // Only the active role's routes render, so the sidebar never links to a
-    // screen the guard would block.
+    // screen the guard would block. The list comes from the live matrix, so a
+    // screen withdrawn on the Settings screen disappears here too.
+    const { getAccessibleSections, status } = useAccessControl();
+    const sections = getAccessibleSections();
     const { role } = useRoleContext();
-    const sections = getAccessibleSections(role);
+
+    /**
+     * Whether the navigation shown may be incomplete.
+     *
+     * The matrix decides what each role reaches, and only Admin may read it
+     * (`GET /api/rbac/permissions`). When that read is refused or the service
+     * is down, the app falls back to the built-in matrix — which knows nothing
+     * about an admin's grants, so a screen the role was given disappears with
+     * no explanation. Saying so is better than a silently shorter menu.
+     *
+     * Admin is exempt, so its navigation is complete either way.
+     */
+    const accessListUnavailable = role !== "Admin" && status === "error";
 
     const handleClose = () => {
         if (onClose) {
@@ -191,6 +208,20 @@ export default function Sidebar({
                     </section>
                 ))}
             </nav>
+
+            {accessListUnavailable && (
+                <div className="mx-3 mb-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                    <p className="flex items-start gap-1.5 text-[11px] font-semibold text-amber-800">
+                        <TriangleAlert size={12} className="mt-0.5 shrink-0" />
+                        Access list unavailable
+                    </p>
+
+                    <p className="mt-0.5 text-[10px] leading-snug text-amber-700/80">
+                        Some screens may be hidden. Ask an admin to check your
+                        access.
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

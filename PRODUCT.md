@@ -38,7 +38,7 @@ One shared record per patient and meal, carried across departments that previous
 - **FSSAI hygiene checklist** is filed as a routine compliance act against a checklist, not a one-off audit.
 - **Recipe creation** can pull detail from an external nutrition source (a server-side proxy to Spoonacular); inventory items are the local ingredient source.
 - The **cafeteria** is a separate service from inpatient catering: table registration with QR self-order, a transaction/settle flow, and printed KOT (kitchen order ticket) snapshots.
-- **No authentication exists yet.** A header role picker sets the active role, and `DEFAULT_ROLE` is `Admin`; the sidebar and `RoleGuard` read the same `Roles.ts` matrix so navigation and access cannot disagree.
+- **Sign-in is delegated** to `hms-auth-service`; the session role comes from the token and is mirrored into `canteen.role`, and the sidebar, `RoleGuard` and every action check read the same live matrix (the backend's, or `Roles.ts` until it answers) so navigation and access cannot disagree.
 - Data reaches the app over HTTP through one environment-configured base URL (`NEXT_PUBLIC_API_BASE_URL`), read at build time; a shared dev tunnel is the fallback when unset.
 
 ## Capabilities and Constraints
@@ -47,7 +47,7 @@ One shared record per patient and meal, carried across departments that previous
 - Next.js 16 App Router, React 19, TypeScript strict mode, Tailwind CSS v4, ESLint 9 flat config; path alias `@/*` → project root.
 - `NEXT_PUBLIC_` prefix is required on the API variable because `data/*/api.ts` modules are imported by client components and inlined into the browser bundle at build time.
 - A real backend API exists; the app is the client of live contracts, not local fixtures.
-- Authority is a data-driven matrix, not logic: `ROLE_ACCESS` (screen level) and `ROLE_ACTIONS` (action level) with `yes` / `may be` / `request` / `no`. Admin is exempt and always "yes"; a blank cell means "no".
+- Authority is a data-driven matrix, not logic: one `action → role → permission` table (`ROLE_ACTIONS`) with `yes` / `may be` / `request` / `no`. A screen is open when the role may carry out at least one action on it (`SCREEN_ACTIONS`), so navigation and authority cannot disagree. Admin is exempt and always "yes"; a blank cell means "no".
 - `request` currently grants nothing — `can()` answers false until an approval flow exists.
 - Routing and navigation are declared once in `routes.ts`; a new screen is `app/<path>/page.tsx` plus a route entry.
 - No test framework is configured.

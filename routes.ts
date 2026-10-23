@@ -12,6 +12,15 @@
  */
 export const SIDEBAR_TOGGLE_ID = "sidebar-toggle";
 
+/**
+ * The access-control screen.
+ *
+ * Named because it is special: it is the one route that can explain a matrix
+ * the app could not read, so the guard keeps it open when the matrix is
+ * unavailable even though the fallback has no grant for it.
+ */
+export const SETTINGS_PATH = "/settings";
+
 export type RouteItem = {
     /** Label shown in the sidebar */
     name: string;
@@ -140,6 +149,17 @@ export const SIDEBAR_ROUTES: SidebarSection[] = [
                 name: "Tables",
                 path: "/tables",
                 description: "Take table orders for seated customers.",
+            },
+        ],
+    },
+    {
+        section: "Administration",
+        items: [
+            {
+                name: "Settings",
+                path: SETTINGS_PATH,
+                description:
+                    "Control who reaches which screen and what each role may do.",
             },
         ],
     },

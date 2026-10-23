@@ -91,6 +91,34 @@ function notify(message: string): void {
 }
 
 /**
+ * How many requests are currently running with their errors kept off the toast.
+ * A counter rather than a flag so nested and concurrent quiet calls cannot
+ * un-silence each other.
+ */
+let quietDepth = 0;
+
+/**
+ * Runs requests whose failure the caller renders itself, so the global toast
+ * stays out of the way.
+ *
+ * Only the access-control read uses this. Its refusal is an ordinary state —
+ * the API is Admin-only — and the app explains it in place: the sidebar says the
+ * access list is unavailable and the Settings screen names the refusal. A red
+ * "Access denied" toast on every page load would say the same thing worse.
+ */
+export async function withoutErrorToasts<T>(
+    run: () => Promise<T>
+): Promise<T> {
+    quietDepth += 1;
+
+    try {
+        return await run();
+    } finally {
+        quietDepth -= 1;
+    }
+}
+
+/**
  * Installs the fetch interceptor. Idempotent, so both `instrumentation-client`
  * (early, before hydration) and the toast provider (defensive fallback) can call
  * it without stacking wrappers.
@@ -112,7 +140,7 @@ export function installApiErrorToasts(): void {
         try {
             const response = await originalFetch(input, init);
 
-            if (isApi && !response.ok) {
+            if (isApi && !response.ok && quietDepth === 0) {
                 const detail = await readErrorMessage(response);
 
                 notify(
