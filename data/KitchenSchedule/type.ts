@@ -216,43 +216,67 @@ export interface UpdateKitchenScheduleOrdersReadyResponse {
  * ------------------------------------------------------------------ */
 
 /**
- * Fields the client owns when publishing a kitchen schedule — just the moment
- * and the meal slot. Everything else on the row is server-set:
- * - schedule_id          minted server-side via generateId (a SCHEDULE_ID
- *                        counter key must be registered; none exists yet).
- * - master_menu_item_ids left empty (nothing pinned to the schedule).
- * - assigned_chef_id     left null (unassigned).
- * - shift                falls back to the schema default, "Morning".
+ * Fields the client owns when publishing a kitchen schedule — the day, the
+ * moment and the meal slot. Everything else on the row is server-set:
+ * - schedule_id          minted server-side via generateId (SCHEDULE_ID).
+ * - master_menu_item_ids left empty on create (nothing pinned yet); kept as
+ *                        stored when an existing schedule is updated.
+ * - assigned_chef_id     left null on create; kept as stored on update.
+ * - shift                schema default "Morning" on create; kept as stored
+ *                        on update.
  * - createdAt / updatedAt  timestamps.
+ *
+ * Upsert semantics: a schedule is identified by schedule_date + meal_slot. If
+ * a row for that day and slot already exists, its schedule_at is replaced with
+ * the given moment and no second row is created. A different slot on the same
+ * day therefore never overwrites this one.
  */
 export interface CreateKitchenScheduleBody {
     /**
-     * The moment the schedule is for — the schema stores a single schedule_at
-     * Date. ISO string; the server converts it to a Date. 400 if unparseable.
+     * The service day the schedule is for. ISO date or date-time string; only
+     * its local calendar day is used. Required — it is half of the upsert key.
+     * 400 if unparseable.
+     */
+    schedule_date: string;
+    /**
+     * The moment the schedule is for. ISO string; 400 if unparseable. On create
+     * it is stored as-is; on update it replaces the existing row's schedule_at.
+     * The date part does not choose the day — schedule_date does — and the
+     * scheduler reads the time-of-day from this value.
      */
     schedule_at: string;
-    /** Meal to prepare; a MEAL_TYPE value, e.g. "Lunch". */
+    /** Meal to prepare; a MEAL_TYPE value, e.g. "Lunch". Other half of the key. */
     meal_slot: MealSlot;
 }
 
 /**
- * The created schedule row.
+ * The schedule row after the POST — created, or the existing row whose
+ * schedule_at was replaced.
  *
- * master_menu_item_ids is empty on a fresh schedule — nothing is pinned at
- * create time. When populated it holds raw MasterMenuItem ObjectIds (hex
- * strings once serialized), not business ids.
+ * master_menu_item_ids is empty on a freshly created schedule — nothing is
+ * pinned at create time. When populated it holds raw MasterMenuItem ObjectIds
+ * (hex strings once serialized), not business ids. On update these are the ids
+ * already stored on the row.
  */
 export interface CreateKitchenScheduleResponse {
     /** Business id minted by the server, e.g. "KS-000001". */
     schedule_id: string;
+    /** ISO timestamp of the stored schedule_date (the day part of the key). */
+    schedule_date: string;
     /** ISO timestamp; echoes the client's schedule_at. */
     schedule_at: string;
     meal_slot: MealSlot;
-    /** Raw MasterMenuItem ObjectIds; [] on create. */
+    /** Raw MasterMenuItem ObjectIds; [] on create, unchanged on update. */
     master_menu_item_ids: string[];
     /** Raw Staff ObjectId, or null while unassigned. */
     assigned_chef_id: string | null;
     shift: FssaiShift;
+    /**
+     * True when this call created a new schedule; false when it updated the
+     * schedule_at of the row already stored for this schedule_date +
+     * meal_slot (the controller can then answer 200 instead of 201).
+     */
+    is_new: boolean;
     /** ISO timestamp. */
     createdAt: string;
     /** ISO timestamp. */

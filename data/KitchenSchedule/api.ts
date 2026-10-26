@@ -194,21 +194,32 @@ export async function updateKitchenScheduleOrdersReadyApi(
 }
 
 /**
- * POST /api/kitchenschedule — publishes one schedule row for one meal slot at
- * one moment.
+ * POST /api/kitchenschedule — publishes one schedule row for one meal slot on
+ * one service day.
  *
- * The body carries `schedule_at` (the moment, an ISO string the server parses
- * to a Date) and `meal_slot`; schedule_id, shift and the assignment fields are
- * all server-set (see CreateKitchenScheduleBody). The contract takes a single
- * meal_slot per row, so scheduling a whole day is one call per selected slot.
+ * The body carries `schedule_date` (the day, half of the upsert key),
+ * `schedule_at` (the moment, an ISO string the server parses to a Date) and
+ * `meal_slot` (the other half of the key); schedule_id, shift and the
+ * assignment fields are all server-set (see CreateKitchenScheduleBody). The
+ * contract takes a single meal_slot per row, so scheduling a whole day is one
+ * call per selected slot.
+ *
+ * The endpoint upserts on schedule_date + meal_slot: re-scheduling a slot
+ * replaces its schedule_at instead of creating a duplicate row, and the
+ * response's `is_new` says which happened.
  *
  * Throws on a non-2xx response (including the backend's own message when it
  * sends one) so the modal can report exactly which slot failed instead of
- * claiming the whole day was scheduled. Returns the minted row, unwrapped from
+ * claiming the whole day was scheduled. Returns the saved row, unwrapped from
  * the `data` envelope.
+ *
+ * `signal` is optional and only lets the caller bound an unanswered request;
+ * the schedule modal aborts after its own deadline so a lost response cannot
+ * leave the submit button spinning forever.
  */
 export async function createKitchenScheduleApi(
-    body: CreateKitchenScheduleBody
+    body: CreateKitchenScheduleBody,
+    signal?: AbortSignal
 ): Promise<CreateKitchenScheduleResponse> {
     const response = await fetch(
         `${API_BASE_URL}/kitchenschedule`,
@@ -216,6 +227,7 @@ export async function createKitchenScheduleApi(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
+            signal,
         }
     );
 

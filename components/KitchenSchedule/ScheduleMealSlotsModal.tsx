@@ -1,6 +1,7 @@
 "use client";
 
 import { createKitchenScheduleApi } from "@/data/KitchenSchedule/api";
+import type { CreateKitchenScheduleBody } from "@/data/KitchenSchedule/type";
 import type { MealSlot } from "@/data/Menu/type";
 import { CalendarClock, Check, LoaderCircle, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
@@ -51,8 +52,60 @@ function toIsoMoment(date: string, time: string): string | null {
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
+/**
+ * How long one slot's POST may stay unanswered before the modal stops waiting.
+ * A dropped response is the one failure the network layer cannot distinguish
+ * from a slow server — the row is written, the reply never arrives — so the
+ * deadline reports it as unknown rather than leaving "Scheduling…" forever.
+ */
+const SLOT_REQUEST_TIMEOUT_MS = 15_000;
+
+/** The slot POST did not answer before the deadline; it may still be saved. */
+class SlotTimeoutError extends Error {
+    constructor() {
+        super(
+            "No response after 15 seconds. The slot may already be saved; resubmitting the same day and slot will not create a duplicate."
+        );
+        this.name = "SlotTimeoutError";
+    }
+}
+
+/**
+ * Posts one slot and settles within SLOT_REQUEST_TIMEOUT_MS.
+ *
+ * The deadline wraps the whole call, not just the inner fetch, so a stalled
+ * token refresh in the auth interceptor cannot hold the modal open either. The
+ * abort is what frees the browser's connection when the reply is lost.
+ */
+async function createSlotWithinDeadline(body: CreateKitchenScheduleBody) {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+            controller.abort();
+            reject(new SlotTimeoutError());
+        }, SLOT_REQUEST_TIMEOUT_MS);
+    });
+
+    try {
+        return await Promise.race([
+            createKitchenScheduleApi(body, controller.signal),
+            deadline,
+        ]);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
 /** One slot's round-trip result, so a partial failure stays visible. */
-type SlotOutcome = { slot: MealSlot; ok: boolean; error?: string };
+type SlotOutcome = {
+    slot: MealSlot;
+    ok: boolean;
+    error?: string;
+    /** False when the backend updated an existing row instead of creating one. */
+    isNew?: boolean;
+};
 
 /**
  * Publishes a kitchen schedule for a day: POST /api/kitchenschedule once per
@@ -79,6 +132,7 @@ export default function ScheduleMealSlotsModal({
     }));
 
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [pendingSlots, setPendingSlots] = useState<MealSlot[]>([]);
     const [error, setError] = useState("");
     const [outcomes, setOutcomes] = useState<SlotOutcome[] | null>(null);
 
@@ -138,33 +192,54 @@ export default function ScheduleMealSlotsModal({
         }
 
         setIsSubmitting(true);
+        setPendingSlots(targets.map(({ slot }) => slot));
 
         // One request per slot, captured individually — a slot that fails is
-        // reported rather than aborting the rest of the day.
-        const results = await Promise.all(
-            targets.map(async ({ slot, scheduleAt }): Promise<SlotOutcome> => {
-                try {
-                    await createKitchenScheduleApi({
-                        schedule_at: scheduleAt,
-                        meal_slot: slot,
-                    });
+        // reported rather than aborting the rest of the day. Each request is
+        // bounded, so one lost reply cannot keep the whole day's submit
+        // pending and leave the button spinning.
+        try {
+            const results = await Promise.all(
+                targets.map(async ({ slot, scheduleAt }): Promise<SlotOutcome> => {
+                    try {
+                        const saved = await createSlotWithinDeadline({
+                            schedule_date: scheduleDate,
+                            schedule_at: scheduleAt,
+                            meal_slot: slot,
+                        });
 
-                    return { slot, ok: true };
-                } catch (scheduleError) {
-                    return {
-                        slot,
-                        ok: false,
-                        error:
-                            scheduleError instanceof Error
-                                ? scheduleError.message
-                                : "Could not schedule this slot.",
-                    };
-                }
-            })
-        );
+                        return { slot, ok: true, isNew: saved.is_new };
+                    } catch (scheduleError) {
+                        return {
+                            slot,
+                            ok: false,
+                            error:
+                                scheduleError instanceof Error
+                                    ? scheduleError.message
+                                    : "Could not schedule this slot.",
+                        };
+                    } finally {
+                        setPendingSlots((previous) =>
+                            previous.filter((entry) => entry !== slot)
+                        );
+                    }
+                })
+            );
 
-        setOutcomes(results);
-        setIsSubmitting(false);
+            setOutcomes(results);
+        } catch (submitError) {
+            // Every slot handles its own failure; this is the safety net for
+            // anything outside that per-slot contract, so the button still
+            // re-enables instead of staying on "Scheduling…".
+            setError(
+                submitError instanceof Error
+                    ? submitError.message
+                    : "Could not schedule the selected slots."
+            );
+        } finally {
+            setIsSubmitting(false);
+            setPendingSlots([]);
+        }
     };
 
     /** Returns the form to its opening state after a fully successful run. */
@@ -172,6 +247,7 @@ export default function ScheduleMealSlotsModal({
         setScheduleDate(todayIso());
         setSelectedSlots(SCHEDULABLE_SLOTS);
         setSlotTimes({ ...DEFAULT_SLOT_TIMES });
+        setPendingSlots([]);
         setOutcomes(null);
         setError("");
     };
@@ -258,8 +334,14 @@ export default function ScheduleMealSlotsModal({
                                             {outcome.slot}
                                         </span>
 
-                                        <span className="text-xs font-medium text-emerald-700">
+                                        <span className="flex items-center gap-2 text-xs font-medium text-emerald-700">
                                             {slotTimes[outcome.slot]}
+
+                                            {outcome.isNew === false && (
+                                                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">
+                                                    updated
+                                                </span>
+                                            )}
                                         </span>
                                     </li>
                                 ))}
@@ -304,16 +386,19 @@ export default function ScheduleMealSlotsModal({
                                     id="schedule-date"
                                     type="date"
                                     value={scheduleDate}
+                                    disabled={isSubmitting}
                                     onChange={(event) => {
                                         setScheduleDate(event.target.value);
                                         setError("");
                                     }}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                                 />
 
                                 <p className="mt-1 text-[10px] text-slate-400">
-                                    Each row stores one moment — this day
-                                    combined with the slot&apos;s own time.
+                                    Each row is keyed by this day and the meal
+                                    slot. Scheduling the same pair again
+                                    updates its time instead of adding a
+                                    duplicate.
                                 </p>
                             </div>
 
@@ -345,6 +430,7 @@ export default function ScheduleMealSlotsModal({
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
+                                                        disabled={isSubmitting}
                                                         onChange={() =>
                                                             toggleSlot(slot)
                                                         }
@@ -353,8 +439,8 @@ export default function ScheduleMealSlotsModal({
 
                                                     {slot}
 
-                                                    {outcome &&
-                                                        (outcome.ok ? (
+                                                    {outcome ? (
+                                                        outcome.ok ? (
                                                             <Check
                                                                 size={14}
                                                                 className="text-emerald-600"
@@ -364,14 +450,22 @@ export default function ScheduleMealSlotsModal({
                                                                 size={14}
                                                                 className="text-red-500"
                                                             />
-                                                        ))}
+                                                        )
+                                                    ) : pendingSlots.includes(
+                                                          slot
+                                                      ) ? (
+                                                        <LoaderCircle
+                                                            size={14}
+                                                            className="animate-spin text-amber-600"
+                                                        />
+                                                    ) : null}
                                                 </label>
 
                                                 <input
                                                     type="time"
                                                     aria-label={`${slot} time`}
                                                     value={slotTimes[slot]}
-                                                    disabled={!checked}
+                                                    disabled={!checked || isSubmitting}
                                                     onChange={(event) =>
                                                         updateTime(
                                                             slot,
@@ -408,6 +502,15 @@ export default function ScheduleMealSlotsModal({
                             {error && (
                                 <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
                                     {error}
+                                </p>
+                            )}
+
+                            {isSubmitting && (
+                                <p className="text-[10px] text-slate-400">
+                                    Waiting for the kitchen API. A slot that
+                                    does not answer within 15 seconds is
+                                    reported as unknown; resubmitting targets
+                                    the same day and slot.
                                 </p>
                             )}
                         </div>
