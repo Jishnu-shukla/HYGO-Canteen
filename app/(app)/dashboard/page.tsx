@@ -91,13 +91,6 @@ export default function Dashboard() {
                         inpatient catering.
                     </p>
                 </div>
-
-                <button
-                    type="button"
-                    className="rounded-full bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
-                >
-                    New Diet Order
-                </button>
             </section>
 
             {/* Summary cards */}

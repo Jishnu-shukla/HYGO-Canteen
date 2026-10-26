@@ -1,8 +1,15 @@
 import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     AddTableOrderBody,
+    CafeteriaDaySales,
+    CafeteriaPagination,
     CafeteriaSummary,
+    CafeteriaTransactionListItem,
     CreateCafeteriaTransactionBody,
+    GetCafeteriaDaysQuery,
+    GetCafeteriaQuery,
+    GetCafeteriaResponse,
+    GetCafeteriaTransactionDetails,
     GetTableTransactionDetails,
     GetTableTransactionDetailsQuery,
     PlaceTableOrderResponse,
@@ -37,6 +44,57 @@ export async function getCafeteriaSummaryApi(): Promise<CafeteriaSummary | null>
     } catch (error) {
         console.log(error);
         return null;
+    }
+}
+
+/**
+ * GET /api/cafeteria/days — one point per day of the selected month, in
+ * ascending calendar order and zero-filled by the server, so the chart's
+ * x-axis is continuous without the client inventing missing days.
+ *
+ * month is optional: omitting it charts the current local month, so the first
+ * call needs no query string. Returns [] on any failure so the chart can render
+ * its empty state rather than blocking the screen; the caller logs the reason.
+ */
+export async function getCafeteriaDaysApi(
+    query: GetCafeteriaDaysQuery = {}
+): Promise<CafeteriaDaySales[]> {
+    const params = new URLSearchParams();
+    const month = query.month?.trim();
+
+    if (month) {
+        params.set("month", month);
+    }
+
+    const queryString = params.toString();
+
+    try {
+        const response = await fetch(
+            `${BASE_URL}/days${queryString ? `?${queryString}` : ""}`
+        );
+
+        if (!response.ok) {
+            console.log(
+                `getCafeteriaDaysApi failed: ${response.status} ${response.statusText}`
+            );
+            return [];
+        }
+
+        const jsonData = await response.json();
+
+        // Contract puts rows under data.days; a bare array on data is accepted
+        // too so a server shape change does not blank the chart.
+        const payload = jsonData.data;
+        const rows = Array.isArray(payload?.days)
+            ? payload.days
+            : Array.isArray(payload)
+              ? payload
+              : [];
+
+        return rows as CafeteriaDaySales[];
+    } catch (error) {
+        console.log(error);
+        return [];
     }
 }
 
@@ -186,5 +244,120 @@ export async function updateTableTransactionApi(
             ok: false,
             error: "Could not reach the server — the transaction was not updated.",
         };
+    }
+}
+
+/** Page size used by the transaction ledger's pager. */
+export const CAFETERIA_PAGE_SIZE = 10;
+
+export const EMPTY_CAFETERIA_PAGINATION: CafeteriaPagination = {
+    page: 1,
+    limit: CAFETERIA_PAGE_SIZE,
+    total: 0,
+    total_pages: 1,
+};
+
+/**
+ * Builds a single-page fallback when the server sends no `pagination` block,
+ * so the pager degrades to "everything on page 1" instead of empty pages.
+ */
+function fallbackPagination(page: number, limit: number, rowCount: number) {
+    return { page, limit, total: rowCount, total_pages: 1 };
+}
+
+/**
+ * GET /api/cafeteria?page=&limit= — the transaction ledger, newest first.
+ *
+ * No filters are accepted by the server: every transaction is listed whatever
+ * its payment status, so an open Pending tab sits in the same list as a
+ * settled sale. data is only the requested page while pagination.total
+ * describes the whole collection, which is what the pager renders.
+ *
+ * Returns the page's rows plus the server's pagination block; when no block
+ * arrives, falls back to a single page containing every row.
+ */
+export async function getCafeteriaApi(
+    query: GetCafeteriaQuery = {}
+): Promise<GetCafeteriaResponse> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? CAFETERIA_PAGE_SIZE;
+
+    const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+    });
+
+    try {
+        const response = await fetch(`${BASE_URL}?${params.toString()}`);
+
+        if (!response.ok) {
+            console.log(
+                `getCafeteriaApi failed: ${response.status} ${response.statusText}`
+            );
+            return { data: [], pagination: EMPTY_CAFETERIA_PAGINATION };
+        }
+
+        const jsonData = await response.json();
+
+        // The list response comes back doubly nested
+        // ({ data: { data, pagination } }), same as the other list endpoints;
+        // rows straight on `data` are accepted too.
+        const payload = jsonData.data;
+        const rows = Array.isArray(payload?.data)
+            ? payload.data
+            : Array.isArray(payload)
+              ? payload
+              : [];
+
+        const pagination: CafeteriaPagination =
+            payload?.pagination ?? EMPTY_CAFETERIA_PAGINATION;
+
+        const hasMeta =
+            pagination !== EMPTY_CAFETERIA_PAGINATION &&
+            typeof pagination?.total_pages === "number";
+
+        return {
+            data: rows as CafeteriaTransactionListItem[],
+            pagination: hasMeta
+                ? pagination
+                : fallbackPagination(page, limit, rows.length),
+        };
+    } catch (error) {
+        console.log(error);
+        return { data: [], pagination: EMPTY_CAFETERIA_PAGINATION };
+    }
+}
+
+/**
+ * GET /api/cafeteria/:transaction_id — everything the bill screen prints.
+ *
+ * The id is the TX-… business id from a ledger row, never the Mongo _id. It is
+ * encoded before it reaches the path so an id can never be read as another
+ * route segment. An unknown id is a 404 from the server, which this reports as
+ * null so the modal can say the bill is unavailable rather than render blank.
+ */
+export async function getCafeteriaTransactionDetailsApi(
+    transactionId: string
+): Promise<GetCafeteriaTransactionDetails | null> {
+    const id = transactionId.trim();
+
+    if (id === "") return null;
+
+    try {
+        const response = await fetch(`${BASE_URL}/${encodeURIComponent(id)}`);
+
+        if (!response.ok) {
+            console.log(
+                `getCafeteriaTransactionDetailsApi failed: ${response.status} ${response.statusText}`
+            );
+            return null;
+        }
+
+        const jsonData = await response.json();
+
+        return jsonData.data as GetCafeteriaTransactionDetails;
+    } catch (error) {
+        console.log(error);
+        return null;
     }
 }

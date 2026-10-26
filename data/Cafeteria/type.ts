@@ -306,3 +306,215 @@ export interface CreateCafeteriaTransactionBody {
  * order (no stock counts) and the two contracts cannot drift apart.
  */
 export type UpdateTableOrderResponse = PlaceTableOrderResponse;
+
+/* ------------------------------------------------------------------ *
+ * GET /api/cafeteria/days
+ * ------------------------------------------------------------------ */
+
+/**
+ * One point of the monthly cafeteria-sales chart — the same { label, value }
+ * shape as GET /api/platewaste/diettype's rows, so a chart can render either
+ * payload without a per-endpoint transformation.
+ */
+export interface CafeteriaDaySales {
+    /**
+     * The local calendar day this point covers, as YYYY-MM-DD (Asia/Kolkata,
+     * the same local-day rule as getLocalDayRange). Deliberately a date, not a
+     * timestamp: the chart shows one point per day, and the month is already
+     * fixed by the query. The frontend formats it for display.
+     */
+    label: string;
+    /**
+     * Cafeteria revenue for that day: Σ total_amount over transactions whose
+     * payment_status is "Paid".
+     *
+     * Same revenue rule as CafeteriaSummary.today_revenue and GET
+     * /api/dashboard's cafeteria_sales, so a single day read here agrees with
+     * both. Pending rows are ignored (the money has not been collected yet) and
+     * Refunded rows contribute 0 (the amount was returned) — a day whose only
+     * activity was refunds is 0, never negative. 0 when the day has no paid
+     * sale.
+     */
+    value: number;
+}
+
+/**
+ * Query for GET /api/cafeteria/days — which month to chart.
+ *
+ * Optional, mirroring GET /api/cafeteria/summary's no-argument "today" default:
+ * omitting it charts the current local month, so the first call needs no query
+ * string at all.
+ */
+export interface GetCafeteriaDaysQuery {
+    /**
+     * Month to report as YYYY-MM (e.g. "2026-10"). Must be a real calendar
+     * month; anything else is a 400. Defaults to the current local month.
+     */
+    month?: string;
+}
+
+/**
+ * GET /api/cafeteria/days — chart payload, one point per day of the month.
+ *
+ * days is in ascending calendar order and zero-filled: every day of the
+ * selected month appears, including days with no paid sale (value: 0), so the
+ * x-axis stays continuous and the frontend never has to invent the missing
+ * days. That is deliberately different from GET /api/platewaste/diettype,
+ * which omits empty groups because a diet type with no logs is not a day on a
+ * timeline.
+ */
+export interface GetCafeteriaDaysResponse {
+    days: CafeteriaDaySales[];
+}
+
+/* ------------------------------------------------------------------ *
+ * GET /api/cafeteria
+ * ------------------------------------------------------------------ */
+
+/** GET /api/cafeteria?page=1&limit=10 */
+export interface GetCafeteriaQuery {
+    /** 1-based. Defaults to 1. */
+    page?: number;
+    /** Page size. Defaults to 10, capped at 100. */
+    limit?: number;
+}
+
+/** Page metadata, so the UI can render a pager without a second request. */
+export interface CafeteriaPagination {
+    page: number;
+    limit: number;
+    /** Total matching rows across all pages. */
+    total: number;
+    total_pages: number;
+}
+
+/**
+ * One row of the cafeteria transaction history — the columns the history table
+ * renders, and nothing else.
+ *
+ * table_number is the human-readable number, resolved from the transaction's
+ * stored table_id (the TBL-… TableOrder business id) through the table
+ * collection. It is never the raw TBL-… id, and it is an empty string only
+ * if the referenced TableOrder row cannot be found.
+ *
+ * payment_status is deliberately absent: this is the raw ledger, so a
+ * still-open Pending tab and a settled sale look alike here apart from their
+ * totals. Revenue questions belong to GET /api/cafeteria/summary.
+ */
+export interface CafeteriaTransactionListItem {
+    /** Business id of the transaction, e.g. "TX-000001". */
+    transaction_id: string;
+    /** A CAFETERIA_CUSTOMER_TYPES value; "Visitor" for a QR self-order. */
+    customer_type: CafeteriaCustomerType;
+    /** Null when the order was placed anonymously (the QR self-order default). */
+    customer_name: string | null;
+    /** Null when no mobile number was captured. */
+    mobile_number: string | null;
+    /** Table number (TableOrder.table_number) resolved from the stored table_id. */
+    table_number: string;
+    /**
+     * Stored total_amount (subtotal − discount) for the transaction, taken
+     * as-is so a manual discount/correction is reported exactly as it was filed.
+     * It is the transaction's amount regardless of settlement status.
+     */
+    total_amount: number;
+    /** A CAFETERIA_PAYMENT_MODES value. */
+    payment_mode: CafeteriaPaymentMode;
+    /** When the transaction was filed, as an ISO 8601 string. */
+    transaction_timestamp: string;
+}
+
+/**
+ * GET /api/cafeteria — the paginated transaction ledger, newest first.
+ *
+ * No filters: every transaction is listed, whatever its payment status, and
+ * the sort is transaction_timestamp desc with _id desc as the tie-break so
+ * rows filed in the same second keep a stable order. data is only the
+ * requested page while pagination.total describes the whole collection.
+ */
+export interface GetCafeteriaResponse {
+    data: CafeteriaTransactionListItem[];
+    pagination: CafeteriaPagination;
+}
+
+/* ------------------------------------------------------------------ *
+ * GET /api/cafeteria/:transaction_id
+ * ------------------------------------------------------------------ */
+
+/**
+ * Route param: GET /api/cafeteria/:transaction_id
+ *
+ * Optional at the type level only — the controller's requireParam guard
+ * enforces presence with a 400. The value is the transaction's TX-… business
+ * id, never the Mongo _id.
+ */
+export interface GetCafeteriaTransactionParams {
+    /** Business id of the transaction, e.g. "TX-000001". */
+    transaction_id?: string;
+}
+
+/**
+ * One printed invoice line: the master item, its display name, and the
+ * quantity/price as sold.
+ *
+ * item_id and recipe_name are resolved from the stored MasterMenuItem ref.
+ * If that catalog row has vanished, both fall back to the ref's raw ObjectId
+ * string so the line still renders — a historical invoice is never refused
+ * because one item was removed from the catalog.
+ */
+export interface CafeteriaInvoiceItem {
+    /** MasterMenuItem business id, e.g. "MSTI-000001". */
+    item_id: string;
+    /** MasterMenuItem.recipe_name — the name printed on the line. */
+    recipe_name: string;
+    /** Count sold. */
+    quantity: number;
+    /** Unit price at sale, as stored on the line. */
+    price_at_sale: number;
+}
+
+/**
+ * GET /api/cafeteria/:transaction_id — everything the invoice screen prints.
+ *
+ * The transaction is addressed by its TX-… business id; an unknown id is a
+ * 404. table_number is resolved from the stored table_id (the TBL-…
+ * TableOrder business id), and is "" only when that table row no longer
+ * exists.
+ *
+ * Amounts are the STORED values, not re-derived from the lines. PUT takes the
+ * amounts as sent, so a manual discount/correction is reported exactly as it
+ * was filed: a line's amount is quantity × price_at_sale, and those line
+ * amounts are not guaranteed to add up to subtotal_amount on a manually
+ * corrected transaction.
+ *
+ * Deliberately absent: the Mongo _id, the raw table_id, cashier_id (a
+ * placeholder ObjectId until auth lands) and the internal timestamps. None of
+ * them is printed on an invoice, and omitting them keeps the projection from
+ * leaking them if the schema grows.
+ */
+export interface GetCafeteriaTransactionDetails {
+    /** Business id of the transaction, e.g. "TX-000001". */
+    transaction_id: string;
+    /** A CAFETERIA_CUSTOMER_TYPES value; "Visitor" for a QR self-order. */
+    customer_type: CafeteriaCustomerType;
+    /** Null when the order was placed anonymously (the QR self-order default). */
+    customer_name: string | null;
+    /** Null when no mobile number was captured. */
+    mobile_number: string | null;
+    /** Table number (TableOrder.table_number) resolved from the stored table_id. */
+    table_number: string;
+    /** Stored line order (append order), each with its catalog name resolved. */
+    items_purchased: CafeteriaInvoiceItem[];
+    /** Stored subtotal — the sum of the lines as filed, before any discount. */
+    subtotal_amount: number;
+    /** Stored discount; 0 when none was applied. */
+    discount_applied: number;
+    /** Stored total (subtotal − discount, or a manual correction). */
+    total_amount: number;
+    /** A CAFETERIA_PAYMENT_MODES value. */
+    payment_mode: CafeteriaPaymentMode;
+    /** A CAFETERIA_PAYMENT_STATUSES value — a Pending tab can still be printed. */
+    payment_status: CafeteriaPaymentStatus;
+    /** When the transaction was filed, as an ISO 8601 string. */
+    transaction_timestamp: string;
+}
