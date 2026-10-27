@@ -297,7 +297,7 @@ export default function CreateDietPlanForm({
                     />
                 </Field>
 
-                <Field
+                {/* <Field
                     label="Prescribed by"
                     hint="Staff id. Temporary — auth middleware will supply this."
                 >
@@ -310,7 +310,7 @@ export default function CreateDietPlanForm({
                         placeholder="e.g. ST-0042"
                         className={inputClass}
                     />
-                </Field>
+                </Field> */}
 
                 {/* Withheld dishes span the full row — the roster needs it. */}
                 <div className="sm:col-span-2 xl:col-span-3">

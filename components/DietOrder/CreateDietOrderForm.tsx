@@ -105,7 +105,11 @@ export default function CreateDietOrderForm({
             resetForm();
         } catch (err) {
             console.error("Error creating diet order:", err);
-            setError("Could not create the diet order. Please try again.");
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Could not create the diet order. Please try again."
+            );
         } finally {
             setSaving(false);
         }

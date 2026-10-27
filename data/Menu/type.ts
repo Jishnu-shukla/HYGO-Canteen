@@ -53,6 +53,7 @@ export interface MenuMasterItem {
     recipe_id: string | null;
     recipe_name: string;
     price: number;
+    nutritional_info?: Record<string, number> | null;
 }
 
 export interface PatientMenu {
@@ -63,6 +64,7 @@ export interface PatientMenu {
     diet_type: DietType;
     portion_size: string;
     items: MenuMasterItem[];
+    nutritional_info?: Record<string, number> | null;
 }
 
 export interface GeneralMenu {

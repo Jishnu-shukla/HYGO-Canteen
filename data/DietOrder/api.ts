@@ -192,12 +192,12 @@ export async function createDietOrderApi(
 
     const jsonData = await response.json();
 
-    if (!response.ok) {
-        throw new Error(
-            jsonData?.message ??
-                `Diet order failed: ${response.status} ${response.statusText}`
-        );
-    }
+    // if (!response.ok) {
+    //     throw new Error(
+    //         jsonData?.message ??
+    //             `Diet order failed: ${response.status} ${response.statusText}`
+    //     );
+    // }
 
     return (jsonData.data ?? jsonData) as CreateDietOrderResponse;
 }

@@ -9,6 +9,7 @@ import InventoryFilters from "@/components/Inventory/InventoryFilters";
 import { InventorySummaryCard } from "@/components/Inventory/InventorySummaryCard";
 import InventoryTable from "@/components/Inventory/InventoryTable";
 import SelectInventoryItemModal from "@/components/Inventory/SelectInventoryItemModal";
+import ShoppingListModal from "@/components/Inventory/ShoppingListModal";
 import { useFoodItemContext } from "@/context/FoodItemContext";
 import { EMPTY_INVENTORY_PAGINATION, INVENTORY_PAGE_SIZE, createInventoryBatchApi, createInventoryItemApi, deleteInventoryBatchApi, deleteInventoryItemApi, getInventoryItemsApi, getInventorySummaryApi, updateInventoryItemApi, updateInventoryPreorderApi } from "@/data/Inventory/api";
 import { categories } from "@/data/Inventory/dummyData";
@@ -40,6 +41,7 @@ export default function Inventory() {
     // to show above the table.
     const [poBusyItemId, setPoBusyItemId] = useState<string | null>(null);
     const [poError, setPoError] = useState("");
+    const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
     const { items, refreshItems: refreshContextItems } = useFoodItemContext()
 
     // The table holds its own server-paginated slice, independent of the
@@ -298,7 +300,14 @@ export default function Inventory() {
                     </p>
                 </div>
 
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
+                    <button
+                        type="button"
+                        onClick={() => setIsShoppingListOpen(true)}
+                        className="rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 cursor-pointer"
+                    >
+                        Shopping List
+                    </button>
                     <button
                         type="button"
                         onClick={() => setIsAddItemModalOpen(true)}
@@ -430,6 +439,14 @@ export default function Inventory() {
                     onConfirm={handleDeleteBatch}
                 />
             )}
+
+            <ShoppingListModal
+                isOpen={isShoppingListOpen}
+                onClose={() => setIsShoppingListOpen(false)}
+                items={tableItems}
+                onPOTrigger={handlePOTrigger}
+                poBusyId={poBusyItemId}
+            />
         </main>
     )
 }

@@ -4,6 +4,67 @@ import { PatientMenu } from "@/data/Menu/type";
 import { Pencil, Trash2, Utensils } from "lucide-react";
 import { DayCell, formatDate, ItemList, MENU_CELL, MENU_HEAD, Pill } from "./MenuShared";
 
+function aggregateNutritionalInfo(menus: PatientMenu[]): Record<string, number> | null {
+    const totals: Record<string, number> = {};
+
+    menus.forEach((menu) => {
+        const menuNi = (menu as any).nutritional_info || (menu as any).nutritionalInfo || (menu as any).nutrition_info || (menu as any).nutrients;
+        if (menuNi && typeof menuNi === "object") {
+            Object.entries(menuNi).forEach(([key, value]) => {
+                if (typeof value === "number") {
+                    totals[key] = (totals[key] || 0) + value;
+                }
+            });
+            return;
+        }
+        menu.items?.forEach((item: any) => {
+            const ni = item.nutritional_info || item.nutrition_info || item.nutrients;
+            if (ni && typeof ni === "object") {
+                Object.entries(ni).forEach(([key, value]) => {
+                    if (typeof value === "number") {
+                        totals[key] = (totals[key] || 0) + value;
+                    }
+                });
+            }
+        });
+    });
+
+    return Object.keys(totals).length > 0 ? totals : null;
+}
+
+function NutritionalInfoBanner({ nutritionalInfo }: { nutritionalInfo?: Record<string, number> | null }) {
+    if (!nutritionalInfo || Object.keys(nutritionalInfo).length === 0) {
+        return null;
+    }
+
+    const entries = Object.entries(nutritionalInfo).filter(
+        ([, value]) => value !== undefined && value !== null && typeof value === "number"
+    );
+
+    if (entries.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 shadow-sm">
+            <p className="mb-2 text-sm font-semibold text-amber-900">
+                Nutritional Info (Patient Menu)
+            </p>
+            <div className="flex flex-wrap gap-2">
+                {entries.map(([key, value]) => (
+                    <span
+                        key={key}
+                        className="inline-flex items-center gap-1 rounded-full border border-amber-400 bg-white px-2.5 py-1 text-xs font-medium text-amber-900"
+                    >
+                        <span className="capitalize">{key.replace(/_/g, " ")}</span>
+                        <span className="font-semibold">{Number(value).toFixed(2).replace(/\.00$/, "")}</span>
+                    </span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function PatientMenuTable({
     menus,
     onEdit,
@@ -29,97 +90,108 @@ export default function PatientMenuTable({
         );
     }
 
+    // Get nutritional info from first menu if present (whole patient menu)
+    const nutritionalInfo =
+        menus[0]?.nutritional_info ||
+        (menus[0] as any)?.nutritionalInfo ||
+        (menus[0] as any)?.nutrition_info ||
+        (menus[0] as any)?.nutrients ||
+        aggregateNutritionalInfo(menus);
+
     return (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-                <table className="w-full min-w-[860px] border-collapse">
-                    <thead className="border-b border-slate-200 bg-slate-50">
-                        <tr>
-                            <th className={MENU_HEAD}>Date</th>
-                            <th className={MENU_HEAD}>Days</th>
-                            <th className={MENU_HEAD}>Meal Slot</th>
-                            <th className={MENU_HEAD}>Diet Type</th>
-                            <th className={MENU_HEAD}>Portion</th>
-                            <th className={MENU_HEAD}>Items</th>
-                            <th className={`${MENU_HEAD} text-right`}>
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
+        <>
+            <NutritionalInfoBanner nutritionalInfo={nutritionalInfo} />
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[860px] border-collapse">
+                        <thead className="border-b border-slate-200 bg-slate-50">
+                            <tr>
+                                <th className={MENU_HEAD}>Date</th>
+                                <th className={MENU_HEAD}>Days</th>
+                                <th className={MENU_HEAD}>Meal Slot</th>
+                                <th className={MENU_HEAD}>Diet Type</th>
+                                <th className={MENU_HEAD}>Portion</th>
+                                <th className={MENU_HEAD}>Items</th>
+                                <th className={`${MENU_HEAD} text-right`}>
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
 
-                    <tbody>
-                        {menus.map((menu) => {
-                            const isBusy = busyId === menu.menu_id;
+                        <tbody>
+                            {menus.map((menu) => {
+                                const isBusy = busyId === menu.menu_id;
 
-                            return (
-                                <tr
-                                    key={menu.menu_id}
-                                    className={`border-b border-slate-100 transition last:border-b-0 hover:bg-slate-50 ${
-                                        isBusy ? "opacity-60" : ""
-                                    }`}
-                                >
-                                    <td
-                                        className={`${MENU_CELL} font-medium whitespace-nowrap text-slate-800`}
+                                return (
+                                    <tr
+                                        key={menu.menu_id}
+                                        className={`border-b border-slate-100 transition last:border-b-0 hover:bg-slate-50 ${
+                                            isBusy ? "opacity-60" : ""
+                                        }`}
                                     >
-                                        {formatDate(menu.date)}
-                                    </td>
+                                        <td
+                                            className={`${MENU_CELL} font-medium whitespace-nowrap text-slate-800`}
+                                        >
+                                            {formatDate(menu.date)}
+                                        </td>
 
-                                    <td className={MENU_CELL}>
-                                        <DayCell days={menu.day_of_week} />
-                                    </td>
+                                        <td className={MENU_CELL}>
+                                            <DayCell days={menu.day_of_week} />
+                                        </td>
 
-                                    <td className={MENU_CELL}>
-                                        <Pill tone="amber">{menu.meal_slot}</Pill>
-                                    </td>
+                                        <td className={MENU_CELL}>
+                                            <Pill tone="amber">{menu.meal_slot}</Pill>
+                                        </td>
 
-                                    <td className={MENU_CELL}>
-                                        <Pill tone="blue">{menu.diet_type}</Pill>
-                                    </td>
+                                        <td className={MENU_CELL}>
+                                            <Pill tone="blue">{menu.diet_type}</Pill>
+                                        </td>
 
-                                    <td className={`${MENU_CELL} whitespace-nowrap text-slate-600`}>
-                                        {menu.portion_size || "—"}
-                                    </td>
+                                        <td className={`${MENU_CELL} whitespace-nowrap text-slate-600`}>
+                                            {menu.portion_size || "—"}
+                                        </td>
 
-                                    <td className={MENU_CELL}>
-                                        <ItemList
-                                            items={menu.items}
-                                            priceLabel={(item) =>
-                                                `₹${Number(item.price).toLocaleString("en-IN")}`
-                                            }
-                                        />
-                                    </td>
+                                        <td className={MENU_CELL}>
+                                            <ItemList
+                                                items={menu.items}
+                                                priceLabel={(item) =>
+                                                    `₹${Number(item.price).toLocaleString("en-IN")}`
+                                                }
+                                            />
+                                        </td>
 
-                                    <td className={`${MENU_CELL} whitespace-nowrap text-right`}>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                type="button"
-                                                disabled={isBusy}
-                                                onClick={() => onEdit(menu)}
-                                                title={`Edit menu for ${formatDate(menu.date)}`}
-                                                aria-label={`Edit menu for ${formatDate(menu.date)}`}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 bg-white text-blue-700 transition hover:bg-blue-50 disabled:opacity-50"
-                                            >
-                                                <Pencil size={15} />
-                                            </button>
+                                        <td className={`${MENU_CELL} whitespace-nowrap text-right`}>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    type="button"
+                                                    disabled={isBusy}
+                                                    onClick={() => onEdit(menu)}
+                                                    title={`Edit menu for ${formatDate(menu.date)}`}
+                                                    aria-label={`Edit menu for ${formatDate(menu.date)}`}
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 bg-white text-blue-700 transition hover:bg-blue-50 disabled:opacity-50"
+                                                >
+                                                    <Pencil size={15} />
+                                                </button>
 
-                                            <button
-                                                type="button"
-                                                disabled={isBusy}
-                                                onClick={() => onDelete(menu)}
-                                                title={`Delete menu for ${formatDate(menu.date)}`}
-                                                aria-label={`Delete menu for ${formatDate(menu.date)}`}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-                                            >
-                                                <Trash2 size={15} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                                <button
+                                                    type="button"
+                                                    disabled={isBusy}
+                                                    onClick={() => onDelete(menu)}
+                                                    title={`Delete menu for ${formatDate(menu.date)}`}
+                                                    aria-label={`Delete menu for ${formatDate(menu.date)}`}
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                                                >
+                                                    <Trash2 size={15} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
+        </>
     );
 }
