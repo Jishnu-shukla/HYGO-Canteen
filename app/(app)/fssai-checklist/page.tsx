@@ -3,6 +3,10 @@
 import { FssaiChecklistSummaryCards } from "@/components/FssaiChecklist/FssaiChecklistSummaryCards";
 import { FssaiChecklistTable } from "@/components/FssaiChecklist/FssaiChecklistTable";
 import CreateFssaiChecklistModal from "@/components/FssaiChecklist/CreateFssaiChecklistModal";
+import FssaiCertificatesTab from "@/components/FssaiChecklist/FssaiCertificatesTab";
+import FssaiInspectionsTab from "@/components/FssaiChecklist/FssaiInspectionsTab";
+import AddInspectionModal from "@/components/FssaiChecklist/AddInspectionModal";
+import CreateCorrectiveActionModal from "@/components/FssaiChecklist/CreateCorrectiveActionModal";
 import { getFssaiChecklistApi, getFssaiChecklistSummaryApi } from "@/data/FssaiChecklist/api";
 import type { FssaichecklistSummary, GetFssaichecklist } from "@/data/FssaiChecklist/type";
 import { showToast } from "@/utils/toast";
@@ -24,6 +28,8 @@ export default function FssaiChecklistPage() {
 
     // The "Add Category" modal is mounted only while open, so it starts clean.
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [isAddInspectionOpen, setIsAddInspectionOpen] = useState(false);
+    const [isAddActionOpen, setIsAddActionOpen] = useState(false);
 
     // Start true so the mount fetches need no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
@@ -85,7 +91,7 @@ export default function FssaiChecklistPage() {
     }
 
     return (
-        <main className="min-h-screen w-full bg-slate-50 p-3 md:p-4">
+        <main className="h-screen w-full overflow-auto bg-slate-50 p-3 md:p-4">
             {/* Header */}
             <section className="mb-4 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
                 <div>
@@ -118,6 +124,26 @@ export default function FssaiChecklistPage() {
                     >
                         <Plus size={16} />
                         Add Category
+                    </button>
+                )}
+                {activeTab === "inspection" && (
+                    <button
+                        type="button"
+                        onClick={() => setIsAddInspectionOpen(true)}
+                        className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 md:self-auto"
+                    >
+                        <Plus size={16} />
+                        Add Inspection
+                    </button>
+                )}
+                {activeTab === "corrective-actions" && (
+                    <button
+                        type="button"
+                        onClick={() => setIsAddActionOpen(true)}
+                        className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 md:self-auto"
+                    >
+                        <Plus size={16} />
+                        Create Corrective Action
                     </button>
                 )}
             </section>
@@ -153,16 +179,18 @@ export default function FssaiChecklistPage() {
                 />
             )}
 
-            {(activeTab === "certificate" ||
-                activeTab === "inspection" ||
-                activeTab === "corrective-actions") && (
+            {activeTab === "certificate" && <FssaiCertificatesTab />}
+
+            {activeTab === "inspection" && <FssaiInspectionsTab />}
+
+            {activeTab === "corrective-actions" && (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center">
                     <ShieldCheck className="mx-auto text-slate-300" size={28} />
                     <p className="mt-2 text-sm font-medium text-slate-500">
-                        No data available
+                        No corrective actions yet
                     </p>
                     <p className="mt-1 text-sm text-slate-400">
-                        Content for this tab will be added soon.
+                        Click "Create Corrective Action" to add one.
                     </p>
                 </div>
             )}
@@ -171,6 +199,26 @@ export default function FssaiChecklistPage() {
                 <CreateFssaiChecklistModal
                     onCreated={handleCreated}
                     onClose={() => setIsCreateOpen(false)}
+                />
+            )}
+
+            {isAddInspectionOpen && (
+                <AddInspectionModal
+                    onCreated={() => {
+                        setActiveTab("inspection");
+                        window.location.reload();
+                    }}
+                    onClose={() => setIsAddInspectionOpen(false)}
+                />
+            )}
+
+            {isAddActionOpen && (
+                <CreateCorrectiveActionModal
+                    onCreated={() => {
+                        setActiveTab("corrective-actions");
+                        window.location.reload();
+                    }}
+                    onClose={() => setIsAddActionOpen(false)}
                 />
             )}
         </main>
