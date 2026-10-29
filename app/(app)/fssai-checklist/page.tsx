@@ -9,6 +9,15 @@ import { showToast } from "@/utils/toast";
 import { Plus, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
+const TABS = [
+    { id: "certificate", label: "Certificate" },
+    { id: "inspection", label: "Inspection" },
+    { id: "internal-inspection", label: "Internal inspection" },
+    { id: "corrective-actions", label: "Corrective actions" },
+] as const;
+
+type TabId = (typeof TABS)[number]["id"];
+
 export default function FssaiChecklistPage() {
     const [summary, setSummary] = useState<FssaichecklistSummary | null>(null);
     const [checklists, setChecklists] = useState<GetFssaichecklist[]>([]);
@@ -19,6 +28,8 @@ export default function FssaiChecklistPage() {
     // Start true so the mount fetches need no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
     const [isListLoading, setIsListLoading] = useState(true);
+
+    const [activeTab, setActiveTab] = useState<TabId>("internal-inspection");
 
     useEffect(() => {
         // Inlined rather than calling a helper: the set-state-in-effect rule
@@ -99,13 +110,16 @@ export default function FssaiChecklistPage() {
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() => setIsCreateOpen(true)}
-                    className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 md:self-auto"
-                >
-                    Add Category
-                </button>
+                {activeTab === "internal-inspection" && (
+                    <button
+                        type="button"
+                        onClick={() => setIsCreateOpen(true)}
+                        className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 md:self-auto"
+                    >
+                        <Plus size={16} />
+                        Add Category
+                    </button>
+                )}
             </section>
 
             <FssaiChecklistSummaryCards
@@ -113,10 +127,45 @@ export default function FssaiChecklistPage() {
                 loading={isSummaryLoading}
             />
 
-            <FssaiChecklistTable
-                checklists={checklists}
-                loading={isListLoading}
-            />
+            <div className="mt-4 mb-4">
+                <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                    {TABS.map((tab) => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex-1 min-w-[120px] rounded-lg px-4 py-2 text-sm font-medium transition ${
+                                activeTab === tab.id
+                                    ? "bg-amber-100 text-amber-900"
+                                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                            }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {activeTab === "internal-inspection" && (
+                <FssaiChecklistTable
+                    checklists={checklists}
+                    loading={isListLoading}
+                />
+            )}
+
+            {(activeTab === "certificate" ||
+                activeTab === "inspection" ||
+                activeTab === "corrective-actions") && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center">
+                    <ShieldCheck className="mx-auto text-slate-300" size={28} />
+                    <p className="mt-2 text-sm font-medium text-slate-500">
+                        No data available
+                    </p>
+                    <p className="mt-1 text-sm text-slate-400">
+                        Content for this tab will be added soon.
+                    </p>
+                </div>
+            )}
 
             {isCreateOpen && (
                 <CreateFssaiChecklistModal

@@ -321,9 +321,15 @@ export default function MealSlotOrdersModal({
                                         <th className="px-3 py-2.5">
                                             Order ID
                                         </th>
-                                        <th className="px-3 py-2.5">Ward</th>
+                                        <th className="px-3 py-2.5">Patient / Ward</th>
                                         <th className="px-3 py-2.5">
                                             Diet Type
+                                        </th>
+                                        <th className="px-3 py-2.5">
+                                            Allergies / Intolerances
+                                        </th>
+                                        <th className="px-3 py-2.5">
+                                            Restrictions / Notes
                                         </th>
                                         <th className="px-3 py-2.5 text-right">
                                             Action
@@ -335,24 +341,126 @@ export default function MealSlotOrdersModal({
                                     {orders?.map((order) => (
                                         <tr
                                             key={order.order_id}
-                                            className="border-t border-slate-100"
+                                            className="border-t border-slate-100 align-top"
                                         >
                                             <td className="px-3 py-2.5 font-semibold text-slate-700">
                                                 {order.order_id}
                                             </td>
 
                                             <td className="px-3 py-2.5 text-slate-600">
-                                                {order.ward_name || (
-                                                    <span className="text-slate-300">
-                                                        Unassigned
-                                                    </span>
-                                                )}
+                                                <div className="space-y-0.5">
+                                                    {order.patient_name && (
+                                                        <p className="font-medium text-slate-700">
+                                                            {order.patient_name}
+                                                        </p>
+                                                    )}
+                                                    {order.uhid && (
+                                                        <p className="text-[11px] text-slate-500">
+                                                            UHID: {order.uhid}
+                                                        </p>
+                                                    )}
+                                                    {order.bed_number && (
+                                                        <p className="text-[11px] text-slate-500">
+                                                            Bed: {order.bed_number}
+                                                        </p>
+                                                    )}
+                                                    <p className="text-xs text-slate-600">
+                                                        {order.ward_name || (
+                                                            <span className="text-slate-300">
+                                                                Unassigned
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
                                             </td>
 
                                             <td className="px-3 py-2.5">
                                                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                                                     {order.diet_type}
                                                 </span>
+                                            </td>
+
+                                            <td className="px-3 py-2.5">
+                                                <div className="space-y-1.5">
+                                                    {order.allergies && order.allergies.length > 0 ? (
+                                                        <div className="space-y-1">
+                                                            {order.allergies.map((allergy, idx) => (
+                                                                <div
+                                                                    key={idx}
+                                                                    className="flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-1"
+                                                                >
+                                                                    <span className="text-xs font-medium text-red-700">
+                                                                        {allergy.name}
+                                                                    </span>
+                                                                    {allergy.severity && (
+                                                                        <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                                                                            {allergy.severity}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs text-slate-300">—</span>
+                                                    )}
+                                                    {order.intolerances && order.intolerances.length > 0 && (
+                                                        <div className="space-y-1">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                                Intolerances
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {order.intolerances.map((intol, idx) => (
+                                                                    <span
+                                                                        key={idx}
+                                                                        className="rounded-md bg-orange-50 px-2 py-0.5 text-xs text-orange-700"
+                                                                    >
+                                                                        {intol}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            <td className="px-3 py-2.5">
+                                                <div className="space-y-1.5 max-w-xs">
+                                                    {order.religious_dietary_restrictions && (
+                                                        <div>
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                                Religious/Dietary
+                                                            </p>
+                                                            <p className="text-xs text-slate-700">
+                                                                {order.religious_dietary_restrictions}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {order.extra_notes && (
+                                                        <div>
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                                Extra Notes
+                                                            </p>
+                                                            <p className="text-xs text-slate-700">
+                                                                {order.extra_notes}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {order.special_instruction && (
+                                                        <div>
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                                Special Instructions
+                                                            </p>
+                                                            <p className="text-xs text-slate-700">
+                                                                {order.special_instruction}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {!order.religious_dietary_restrictions &&
+                                                        !order.extra_notes &&
+                                                        !order.special_instruction && (
+                                                            <span className="text-xs text-slate-300">—</span>
+                                                        )}
+                                                </div>
                                             </td>
 
                                             <td className="px-3 py-2.5 text-right">
