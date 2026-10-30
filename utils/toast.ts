@@ -24,6 +24,23 @@ export interface ShowToastOptions {
     durationMs?: number;
 }
 
+/**
+ * The envelope every backend endpoint answers with: `{ statusCode, message,
+ * data, success }`. `status` is accepted too because a few older routes used
+ * that key instead of `success`.
+ */
+export interface ApiResultLike {
+    success?: boolean;
+    status?: boolean;
+    message?: string;
+}
+
+/** Fallback copy for {@link showApiResultToast}. */
+export interface ApiResultToastMessages {
+    success: string;
+    failure: string;
+}
+
 type Listener = () => void;
 
 interface ToastStore {
@@ -127,6 +144,31 @@ export function showToast({
 /** Convenience wrapper for the global API-error path. */
 export function showErrorToast(message: string): number {
     return showToast({ variant: "error", message });
+}
+
+/**
+ * Raises the success or error toast for a write endpoint's parsed body.
+ *
+ * Checks `success` (the current envelope) and `status` (the older one), so a
+ * successful write can never be reported as a failure just because one key is
+ * missing. The server's own `message` wins when present; the caller's copy is
+ * the fallback. Returns whether the call succeeded so the caller can decide
+ * whether to close its form.
+ */
+export function showApiResultToast(
+    result: ApiResultLike | null | undefined,
+    messages: ApiResultToastMessages
+): boolean {
+    const succeeded = result?.success === true || result?.status === true;
+    const serverMessage =
+        typeof result?.message === "string" ? result.message.trim() : "";
+
+    showToast({
+        variant: succeeded ? "success" : "error",
+        message: serverMessage || (succeeded ? messages.success : messages.failure),
+    });
+
+    return succeeded;
 }
 
 /** Removes one toast and cancels its dismiss timer. Safe to call twice. */

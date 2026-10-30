@@ -2,7 +2,7 @@
 
 import { createFssaiInspectionApi } from "@/data/FssaiInspection/api";
 import { getCanteenOnboardingApi } from "@/data/Onboarding/api";
-import { showToast } from "@/utils/toast";
+import { showApiResultToast, showToast } from "@/utils/toast";
 import { LoaderCircle, Upload, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -104,18 +104,14 @@ export default function AddInspectionModal({
 
       const result = await createFssaiInspectionApi(formData);
 
-      if (result?.status) {
-        showToast({
-          variant: "success",
-          message: "Inspection added successfully.",
-        });
+      const created = showApiResultToast(result, {
+        success: "Inspection added successfully.",
+        failure: "Failed to add inspection.",
+      });
+
+      if (created) {
         onCreated?.();
         onClose();
-      } else {
-        showToast({
-          variant: "error",
-          message: result?.message || "Failed to add inspection.",
-        });
       }
     } catch (error) {
       showToast({

@@ -1,9 +1,9 @@
 import { API_BASE_URL } from "@/data/apiBaseUrl";
-import { FssaiActionRow } from "./type";
+import type { GetFssaiActionsResponse } from "./type";
 
 const BASE_URL = `${API_BASE_URL}/fssaiaction`;
 
-export async function getFssaiActionsApi(): Promise<FssaiActionRow[]> {
+export async function getFssaiActionsApi(): Promise<GetFssaiActionsResponse> {
   try {
     const token =
       typeof window !== "undefined" ? localStorage.getItem("token") : null;

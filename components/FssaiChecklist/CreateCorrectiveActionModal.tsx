@@ -1,18 +1,39 @@
 "use client";
 
 import { createFssaiActionApi } from "@/data/FssaiAction/api";
+import type { FssaiActionSource } from "@/data/FssaiAction/type";
+import { getFssaiChecklistApi } from "@/data/FssaiChecklist/api";
+import type { GetFssaichecklist } from "@/data/FssaiChecklist/type";
 import { getFssaiInspectionsApi } from "@/data/FssaiInspection/api";
 import type { FssaiInspectionRow } from "@/data/FssaiInspection/type";
-import { showToast } from "@/utils/toast";
+import { showApiResultToast, showToast } from "@/utils/toast";
 import { LoaderCircle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const ACTION_SOURCES = [
-  "Internal Inspection",
-  "External Inspection",
-  "Surprise Visit",
-  "Other",
-] as const;
+  "Internal",
+  "FSSAI"
+] as const satisfies readonly FssaiActionSource[];
+
+/**
+ * Internal inspection *is* the FSSAI checklist filed on the Internal
+ * inspection tab, so it links a checklist_id. Every other source refers to an
+ * inspection filed on the Inspection tab and links an inspection_id.
+ */
+const INTERNAL_SOURCE: FssaiActionSource = "Internal";
+
+/** "2026-10-02T00:00:00.000Z" -> "02 Oct 2026". Falls back to the raw string. */
+function formatDate(value: string) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 const STATUSES = ["open", "in_progress", "close"] as const;
 
@@ -23,14 +44,15 @@ export default function CreateCorrectiveActionModal({
   onCreated?: () => void;
   onClose: () => void;
 }) {
+  const [checklists, setChecklists] = useState<GetFssaichecklist[]>([]);
   const [inspections, setInspections] = useState<FssaiInspectionRow[]>([]);
-  const [loadingInspections, setLoadingInspections] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     issue_name: "",
     issue_details: "",
-    issue_source: "Internal Inspection",
+    issue_source: "" as FssaiActionSource | "",
     inspection_id: "",
     severity: "",
     action_assigned: "",
@@ -40,20 +62,54 @@ export default function CreateCorrectiveActionModal({
 
   useEffect(() => {
     const load = async () => {
-      const data = await getFssaiInspectionsApi();
-      setInspections(data);
-      if (data.length > 0) {
-        setForm((prev) => ({ ...prev, inspection_id: data[0].inspection_id }));
-      }
-      setLoadingInspections(false);
+      const [checklistData, inspectionData] = await Promise.all([
+        getFssaiChecklistApi(),
+        getFssaiInspectionsApi(),
+      ]);
+      setChecklists(checklistData ?? []);
+      setInspections(inspectionData);
+      setLoadingOptions(false);
     };
     load();
   }, []);
+
+  const isInternal = form.issue_source === INTERNAL_SOURCE;
+
+  /**
+   * Whatever the source points at: internal inspections are the FSSAI
+   * checklists, the rest are the externally filed inspections.
+   */
+  const sourceOptions = isInternal
+    ? checklists.map((checklist) => ({
+        value: checklist.checklist_id,
+        label: `${checklist.checklist_id} - ${checklist.categories}${
+          checklist.audit_date ? ` (${formatDate(checklist.audit_date)})` : ""
+        }`,
+      }))
+    : inspections.map((inspection) => ({
+        value: inspection.inspection_id,
+        label: `${inspection.inspection_id} - ${inspection.location}${
+          inspection.type ? ` (${inspection.type})` : ""
+        }`,
+      }));
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  /**
+   * The linked ID belongs to a different collection per source, so changing
+   * the source clears the previous pick — an external inspection_id must never
+   * survive a switch to Internal Inspection (or the other way round).
+   */
+  const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setForm({
+      ...form,
+      issue_source: e.target.value as FssaiActionSource,
+      inspection_id: "",
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,7 +125,9 @@ export default function CreateCorrectiveActionModal({
     ) {
       showToast({
         variant: "error",
-        message: "Please fill all required fields.",
+        message: form.issue_source
+          ? "Please fill all required fields."
+          : "Please select an issue source.",
       });
       return;
     }
@@ -90,18 +148,14 @@ export default function CreateCorrectiveActionModal({
 
       const result = await createFssaiActionApi(payload);
 
-      if (result?.status) {
-        showToast({
-          variant: "success",
-          message: "Corrective action created successfully.",
-        });
+      const created = showApiResultToast(result, {
+        success: "Corrective action created successfully.",
+        failure: "Failed to create corrective action.",
+      });
+
+      if (created) {
         onCreated?.();
         onClose();
-      } else {
-        showToast({
-          variant: "error",
-          message: result?.message || "Failed to create corrective action.",
-        });
       }
     } catch (error) {
       showToast({
@@ -167,10 +221,13 @@ export default function CreateCorrectiveActionModal({
                 <select
                   name="issue_source"
                   value={form.issue_source}
-                  onChange={handleChange}
+                  onChange={handleSourceChange}
                   required
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
+                  <option value="" disabled>
+                    Select issue source
+                  </option>
                   {ACTION_SOURCES.map((source) => (
                     <option key={source} value={source}>
                       {source}
@@ -179,34 +236,47 @@ export default function CreateCorrectiveActionModal({
                 </select>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Inspection ID <span className="text-red-500">*</span>
-                </label>
-                {loadingInspections ? (
-                  <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
-                ) : (
-                  <select
-                    name="inspection_id"
-                    value={form.inspection_id}
-                    onChange={handleChange}
-                    required
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  >
-                    {inspections.length > 0 ? (
-                      inspections.map((insp) => (
-                        <option key={insp.inspection_id} value={insp.inspection_id}>
-                          {insp.inspection_id} - {insp.location} ({insp.type})
+              {form.issue_source && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    {isInternal ? "Checklist ID" : "Inspection ID"}{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  {loadingOptions ? (
+                    <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
+                  ) : (
+                    <select
+                      name="inspection_id"
+                      value={form.inspection_id}
+                      onChange={handleChange}
+                      required
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      {sourceOptions.length > 0 ? (
+                        <>
+                          <option value="" disabled>
+                            Select {isInternal ? "checklist" : "inspection"} ID
+                          </option>
+                          {sourceOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </>
+                      ) : (
+                        <option value="" disabled>
+                          No {isInternal ? "checklists" : "inspections"} available
                         </option>
-                      ))
-                    ) : (
-                      <option value="" disabled>
-                        No inspections available
-                      </option>
-                    )}
-                  </select>
-                )}
-              </div>
+                      )}
+                    </select>
+                  )}
+                  <p className="mt-1 text-xs text-slate-400">
+                    {isInternal
+                      ? "Internal inspections are the FSSAI checklists filed on this screen."
+                      : "Linked to an inspection filed on the Inspection tab."}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -252,7 +322,7 @@ export default function CreateCorrectiveActionModal({
                 />
               </div>
 
-              <div>
+              {/* <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
                   Status
                 </label>
@@ -268,7 +338,7 @@ export default function CreateCorrectiveActionModal({
                     </option>
                   ))}
                 </select>
-              </div>
+              </div> */}
 
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -297,7 +367,9 @@ export default function CreateCorrectiveActionModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || inspections.length === 0}
+              disabled={
+                isSubmitting || (!!form.issue_source && sourceOptions.length === 0)
+              }
               className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50"
             >
               {isSubmitting && <LoaderCircle size={16} className="animate-spin" />}

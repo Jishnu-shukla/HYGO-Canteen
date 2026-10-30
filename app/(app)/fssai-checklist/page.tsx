@@ -5,6 +5,7 @@ import { FssaiChecklistTable } from "@/components/FssaiChecklist/FssaiChecklistT
 import CreateFssaiChecklistModal from "@/components/FssaiChecklist/CreateFssaiChecklistModal";
 import FssaiCertificatesTab from "@/components/FssaiChecklist/FssaiCertificatesTab";
 import FssaiInspectionsTab from "@/components/FssaiChecklist/FssaiInspectionsTab";
+import FssaiCorrectiveActionsTab from "@/components/FssaiChecklist/FssaiCorrectiveActionsTab";
 import AddInspectionModal from "@/components/FssaiChecklist/AddInspectionModal";
 import CreateCorrectiveActionModal from "@/components/FssaiChecklist/CreateCorrectiveActionModal";
 import { getFssaiChecklistApi, getFssaiChecklistSummaryApi } from "@/data/FssaiChecklist/api";
@@ -34,6 +35,10 @@ export default function FssaiChecklistPage() {
     // Start true so the mount fetches need no synchronous setState.
     const [isSummaryLoading, setIsSummaryLoading] = useState(true);
     const [isListLoading, setIsListLoading] = useState(true);
+
+    // Bumped after a successful create so the actions table re-reads without
+    // reloading the page (a reload would discard the success toast).
+    const [actionsRefreshToken, setActionsRefreshToken] = useState(0);
 
     const [activeTab, setActiveTab] = useState<TabId>("internal-inspection");
 
@@ -184,15 +189,9 @@ export default function FssaiChecklistPage() {
             {activeTab === "inspection" && <FssaiInspectionsTab />}
 
             {activeTab === "corrective-actions" && (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center">
-                    <ShieldCheck className="mx-auto text-slate-300" size={28} />
-                    <p className="mt-2 text-sm font-medium text-slate-500">
-                        No corrective actions yet
-                    </p>
-                    <p className="mt-1 text-sm text-slate-400">
-                        Click "Create Corrective Action" to add one.
-                    </p>
-                </div>
+                <FssaiCorrectiveActionsTab
+                    refreshToken={actionsRefreshToken}
+                />
             )}
 
             {isCreateOpen && (
@@ -216,7 +215,7 @@ export default function FssaiChecklistPage() {
                 <CreateCorrectiveActionModal
                     onCreated={() => {
                         setActiveTab("corrective-actions");
-                        window.location.reload();
+                        setActionsRefreshToken((token) => token + 1);
                     }}
                     onClose={() => setIsAddActionOpen(false)}
                 />
