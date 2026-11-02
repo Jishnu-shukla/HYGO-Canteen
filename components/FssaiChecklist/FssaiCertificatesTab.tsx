@@ -123,27 +123,6 @@ export default function FssaiCertificatesTab() {
                   )) || "—"}
                 </div>
               </div>
-              {cert.additional_documents && cert.additional_documents.length > 0 && (
-                <div className="md:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Additional Documents
-                  </p>
-                  <div className="mt-1 space-y-1">
-                    {cert.additional_documents.map((doc, idx) => (
-                      <a
-                        key={idx}
-                        href={doc}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-sm font-medium text-amber-700 hover:text-amber-800"
-                      >
-                        <ExternalLink size={14} />
-                        Document {idx + 1}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
             {cert.licence_certificate ? (
               <div className="border-t border-slate-200 lg:border-t-0 lg:border-l lg:border-slate-200">

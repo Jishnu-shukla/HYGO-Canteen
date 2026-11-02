@@ -1,6 +1,7 @@
 "use client";
 
 import ActionPermissionMatrix from "@/components/Settings/ActionPermissionMatrix";
+import CanteenCertificatesTab from "@/components/Settings/CanteenCertificatesTab";
 import CanteenSettingsPanel from "@/components/Settings/CanteenSettingsPanel";
 import RoleAccessList from "@/components/Settings/RoleAccessList";
 import ScreenAccessMatrix from "@/components/Settings/ScreenAccessMatrix";
@@ -29,10 +30,11 @@ import {
     SlidersHorizontal,
     TriangleAlert,
     UtensilsCrossed,
+    FileText,
 } from "lucide-react";
 import { useState } from "react";
 
-type TabId = "screens" | "actions" | "canteen";
+type TabId = "screens" | "actions" | "canteen" | "certificate";
 
 type ScreenView = "matrix" | "roles";
 
@@ -40,6 +42,7 @@ const TABS: { id: TabId; label: string; Icon: typeof KeyRound }[] = [
     { id: "screens", label: "Screen access", Icon: KeyRound },
     { id: "actions", label: "Action permissions", Icon: ListChecks },
     { id: "canteen", label: "Canteen settings", Icon: UtensilsCrossed },
+    { id: "certificate", label: "Certificate", Icon: FileText },
 ];
 
 /**
@@ -472,9 +475,12 @@ export default function SettingsPage() {
 
             {tab === "canteen" && <CanteenSettingsPanel readOnly={!canManage} />}
 
+            {tab === "certificate" && <CanteenCertificatesTab />}
+
             {/* Save bar — only a role that may manage the settings has
-                changes to save. The canteen tab owns its own save button. */}
-            {canManage && tab !== "canteen" && (
+                changes to save. The canteen and certificate tabs own their
+                content and have nothing to save here. */}
+            {canManage && tab !== "canteen" && tab !== "certificate" && (
                 <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                     <div className="min-w-0">
                         <p className="text-xs font-semibold text-slate-700">
