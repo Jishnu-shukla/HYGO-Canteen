@@ -1,4 +1,8 @@
 import type { FssaiShift } from "@/data/FssaiChecklist/type";
+import type {
+    AllergyEntry,
+    ReligiousDietaryRestriction,
+} from "@/data/AllergyPref/type";
 import type { DietType, MealSlot } from "@/data/Menu/type";
 
 /* ------------------------------------------------------------------ *
@@ -116,6 +120,22 @@ export interface KitchenScheduleOrderItem {
     meal_type: MealSlot;
     /** From the linked DietPlan — always present (planless orders excluded). */
     diet_type: DietType;
+    /** Patient's business ID (UHID), joined when available. */
+    uhid?: string;
+    /** Patient's display name, joined when available. */
+    patient_name?: string;
+    /** Bed number as stored on the order, joined when available. */
+    bed_number?: string;
+    /** Allergies from the patient's allergy preference, if any. */
+    allergies?: AllergyEntry[];
+    /** Free-text intolerances from the patient's allergy preference. */
+    intolerances?: string[];
+    /** Religious or dietary restrictions recorded on the allergy preference. */
+    religious_dietary_restrictions?: ReligiousDietaryRestriction | string;
+    /** Free-text notes from the allergy preference. */
+    extra_notes?: string;
+    /** Special instructions from the diet order. */
+    special_instruction?: string;
 }
 
 /**
