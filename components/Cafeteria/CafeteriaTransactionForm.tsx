@@ -223,6 +223,8 @@ export function CafeteriaTransactionForm({
     const [lines, setLines] = useState<OrderLine[]>([emptyLine(0)]);
     const [discountApplied, setDiscountApplied] = useState("0");
     const [discountPercent, setDiscountPercent] = useState("");
+    const [sgstPercent, setSgstPercent] = useState("");
+    const [cgstPercent, setCgstPercent] = useState("");
     const [paymentMode, setPaymentMode] = useState<CafeteriaPaymentMode>("Cash");
     const [paymentStatus, setPaymentStatus] = useState<CafeteriaPaymentStatus>("Pending");
 
@@ -332,6 +334,17 @@ export function CafeteriaTransactionForm({
         ? roundCurrency((subtotal * percent) / 100)
         : Number(discountApplied);
     const total = subtotal - (Number.isFinite(discount) ? discount : 0);
+
+    // GST is charged on the post-discount total, the way the settle endpoint
+    // stores it: the two percentages are taken as entered, so the preview and
+    // the PUT body always agree.
+    const sgst = Number(sgstPercent);
+    const cgst = Number(cgstPercent);
+    const hasSgst = sgstPercent.trim() !== "" && Number.isFinite(sgst);
+    const hasCgst = cgstPercent.trim() !== "" && Number.isFinite(cgst);
+    const sgstAmount = hasSgst ? roundCurrency((total * sgst) / 100) : 0;
+    const cgstAmount = hasCgst ? roundCurrency((total * cgst) / 100) : 0;
+    const grandTotal = roundCurrency(total + sgstAmount + cgstAmount);
     // 0% adds nothing the bill does not already say (its discount is ₹0), so
     // the label — and the printed line — only appear for a real discount.
     const percentLabel =
@@ -421,15 +434,32 @@ export function CafeteriaTransactionForm({
             return;
         }
 
+        if (
+            (sgstPercent.trim() !== "" &&
+                (!Number.isFinite(sgst) || sgst < 0 || sgst > 100)) ||
+            (cgstPercent.trim() !== "" &&
+                (!Number.isFinite(cgst) || cgst < 0 || cgst > 100))
+        ) {
+            setBanner({
+                kind: "error",
+                text: "SGST and CGST percentages must be between 0 and 100.",
+            });
+            return;
+        }
+
         const body: CreateCafeteriaTransactionBody = {
             customer_type: customerType,
             customer_name: customerName.trim() === "" ? null : customerName.trim(),
             mobile_number: mobileNumber.trim() === "" ? null : mobileNumber.trim(),
             items_purchased: items,
-            table_id: tabData.table_number,
+            table_id: tabData.table_id,
             subtotal_amount: subtotal,
             discount_applied: discount,
+            discount_applied_per: hasPercent ? percent : 0,
             total_amount: total,
+            sgst_per: hasSgst ? sgst : 0,
+            cgst_per: hasCgst ? cgst : 0,
+            grandtotal_amount: grandTotal,
             payment_mode: paymentMode,
             payment_status: paymentStatus,
         };
@@ -455,6 +485,8 @@ export function CafeteriaTransactionForm({
             setMobileNumber("");
             setDiscountApplied("0");
             setDiscountPercent("");
+            setSgstPercent("");
+            setCgstPercent("");
             setPaymentMode("Cash");
             setPaymentStatus("Pending");
 
@@ -495,11 +527,27 @@ export function CafeteriaTransactionForm({
 
         const safeDiscount = Number.isFinite(discount) ? discount : 0;
         const safeTotal = Number.isFinite(total) ? total : subtotal - safeDiscount;
+        const safeSgst = Number.isFinite(sgstAmount) ? sgstAmount : 0;
+        const safeCgst = Number.isFinite(cgstAmount) ? cgstAmount : 0;
+        const safeGrandTotal = roundCurrency(safeTotal + safeSgst + safeCgst);
 
         // Only worth a line on the bill when a percentage was actually used.
         const percentRow =
             percentLabel !== ""
                 ? `        <div><span>Discount (%)</span><span>${escapeHtml(percentLabel)}</span></div>\n`
+                : "";
+
+        const sgstRow =
+            safeSgst > 0
+                ? `        <div><span>SGST (${escapeHtml(
+                      sgstPercent
+                  )}%)</span><span>₹${safeSgst.toLocaleString("en-IN")}</span></div>\n`
+                : "";
+        const cgstRow =
+            safeCgst > 0
+                ? `        <div><span>CGST (${escapeHtml(
+                      cgstPercent
+                  )}%)</span><span>₹${safeCgst.toLocaleString("en-IN")}</span></div>\n`
                 : "";
 
         const rows = lines
@@ -566,7 +614,8 @@ export function CafeteriaTransactionForm({
     <div class="totals">
         <div><span>Subtotal</span><span>₹${subtotal.toLocaleString("en-IN")}</span></div>
 ${percentRow}        <div><span>Discount</span><span>₹${safeDiscount.toLocaleString("en-IN")}</span></div>
-        <div class="grand"><span>Total</span><span>₹${safeTotal.toLocaleString("en-IN")}</span></div>
+        <div><span>Total</span><span>₹${safeTotal.toLocaleString("en-IN")}</span></div>
+${sgstRow}${cgstRow}        <div class="grand"><span>Grand total</span><span>₹${safeGrandTotal.toLocaleString("en-IN")}</span></div>
     </div>
     <p class="muted" style="margin-top:24px;">Payment mode: ${escapeHtml(paymentMode)}</p>
     <script>document.getElementById("printed-at").textContent = new Date().toLocaleString("en-IN");</script>
@@ -891,6 +940,47 @@ ${percentRow}        <div><span>Discount</span><span>₹${safeDiscount.toLocaleS
                         </div>
                     </div>
 
+                    <div className="grid gap-4 sm:grid-cols-3 mt-3">
+                        <div>
+                            <label htmlFor="sgst-percent" className={labelClass}>
+                                SGST (%)
+                            </label>
+                            <input
+                                id="sgst-percent"
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="any"
+                                value={sgstPercent}
+                                onChange={(event) => setSgstPercent(event.target.value)}
+                                placeholder="0"
+                                className={inputClass}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="cgst-percent" className={labelClass}>
+                                CGST (%)
+                            </label>
+                            <input
+                                id="cgst-percent"
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="any"
+                                value={cgstPercent}
+                                onChange={(event) => setCgstPercent(event.target.value)}
+                                placeholder="0"
+                                className={inputClass}
+                            />
+                        </div>
+                        <div className="flex items-end">
+                            <p className="text-[10px] leading-relaxed text-slate-400">
+                                GST is charged on the post-discount total and
+                                sent with the transaction.
+                            </p>
+                        </div>
+                    </div>
+
                     <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-700">
                         <div className="flex flex-wrap gap-4">
                             <span>
@@ -909,7 +999,25 @@ ${percentRow}        <div><span>Discount</span><span>₹${safeDiscount.toLocaleS
                             </span>
                             <span>
                                 <span className="text-slate-500">Total:</span>{" "}
-                                <span className="font-semibold text-emerald-700">₹{total.toLocaleString("en-IN")}</span>
+                                <span className="font-semibold text-slate-900">₹{total.toLocaleString("en-IN")}</span>
+                            </span>
+                            <span>
+                                <span className="text-slate-500">SGST:</span>{" "}
+                                <span className="font-semibold text-slate-900">₹{sgstAmount.toLocaleString("en-IN")}</span>
+                                {hasSgst && sgst > 0 && (
+                                    <span className="text-slate-500"> ({sgst}%)</span>
+                                )}
+                            </span>
+                            <span>
+                                <span className="text-slate-500">CGST:</span>{" "}
+                                <span className="font-semibold text-slate-900">₹{cgstAmount.toLocaleString("en-IN")}</span>
+                                {hasCgst && cgst > 0 && (
+                                    <span className="text-slate-500"> ({cgst}%)</span>
+                                )}
+                            </span>
+                            <span>
+                                <span className="text-slate-500">Grand total:</span>{" "}
+                                <span className="font-semibold text-emerald-700">₹{grandTotal.toLocaleString("en-IN")}</span>
                             </span>
                         </div>
                     </div>

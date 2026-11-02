@@ -1,23 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { InventoryTableItem, UpdateInventoryFields } from "@/data/Inventory/type";
+import {
+    INVENTORY_CATEGORIES,
+    INVENTORY_TAX_TYPES,
+    InventoryCategory,
+    InventoryTableItem,
+    InventoryTaxType,
+    UpdateInventoryFields,
+} from "@/data/Inventory/type";
 
-const CATEGORIES = [
-    "Dry_Goods",
-    "Produce",
-    "Dairy",
-    "Medical_Nutrition",
-    "Beverages",
-    "Cleaning",
-];
+const CATEGORIES = INVENTORY_CATEGORIES;
 
 const UNITS = ["g", "kg", "ml", "l", "unit"];
 
 export interface EditItemFormData {
     item_name: string;
-    category: string;
+    category: InventoryCategory | "";
     unit_of_measure: string;
+    tax_type: InventoryTaxType;
+    default_gst: string;
     stock_type: "stock_pre_usage" | "stock_post_usage";
     threshold_quantity: string;
     storage_location: string;
@@ -38,6 +40,8 @@ export default function EditItemModal({
         item_name: item.item_name ?? "",
         category: item.category ?? "",
         unit_of_measure: item.unit_of_measure ?? "",
+        tax_type: item.tax_type ?? "taxable",
+        default_gst: String(item.default_gst ?? 0),
         stock_type: item.stock_type ?? "stock_pre_usage",
         threshold_quantity: String(item.threshold_quantity ?? ""),
         storage_location: item.storage_location ?? "",
@@ -50,7 +54,7 @@ export default function EditItemModal({
         setFormData((previous) => ({
             ...previous,
             [field]: value,
-        }));
+        }) as EditItemFormData);
 
         if (error) {
             setError("");
@@ -64,6 +68,7 @@ export default function EditItemModal({
             !formData.item_name.trim() ||
             !formData.category ||
             !formData.unit_of_measure ||
+            formData.default_gst === "" ||
             !formData.threshold_quantity ||
             !formData.storage_location.trim()
         ) {
@@ -76,6 +81,14 @@ export default function EditItemModal({
             return;
         }
 
+        if (
+            Number(formData.default_gst) < 0 ||
+            Number(formData.default_gst) > 100
+        ) {
+            setError("Default GST must be between 0 and 100.");
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
@@ -83,6 +96,8 @@ export default function EditItemModal({
                 item_name: formData.item_name.trim(),
                 category: formData.category,
                 unit_of_measure: formData.unit_of_measure,
+                tax_type: formData.tax_type,
+                default_gst: Number(formData.default_gst),
                 threshold_quantity: Number(formData.threshold_quantity),
                 storage_location: formData.storage_location.trim(),
             };
@@ -238,6 +253,73 @@ export default function EditItemModal({
                                         </option>
                                     ))}
                                 </select>
+                            </div>
+                        </div>
+
+                        {/* Tax */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label
+                                    htmlFor="edit-item-tax-type"
+                                    className="mb-1.5 block text-xs font-semibold text-slate-700"
+                                >
+                                    Tax Type
+                                </label>
+
+                                <select
+                                    id="edit-item-tax-type"
+                                    value={formData.tax_type}
+                                    onChange={(event) =>
+                                        updateField(
+                                            "tax_type",
+                                            event.target.value
+                                        )
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                                >
+                                    {INVENTORY_TAX_TYPES.map((taxType) => (
+                                        <option
+                                            key={taxType}
+                                            value={taxType}
+                                        >
+                                            {taxType === "taxable"
+                                                ? "Taxable"
+                                                : "Non-taxable"}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="edit-item-default-gst"
+                                    className="mb-1.5 block text-xs font-semibold text-slate-700"
+                                >
+                                    Default GST
+                                </label>
+
+                                <div className="relative">
+                                    <input
+                                        id="edit-item-default-gst"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        value={formData.default_gst}
+                                        onChange={(event) =>
+                                            updateField(
+                                                "default_gst",
+                                                event.target.value
+                                            )
+                                        }
+                                        placeholder="e.g. 5"
+                                        className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                                    />
+
+                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+                                        %
+                                    </span>
+                                </div>
                             </div>
                         </div>
 

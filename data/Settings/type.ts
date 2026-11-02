@@ -4,6 +4,7 @@ import type {
     Role,
     RoleActionMatrix,
 } from "@/Roles";
+import type { MealSlot } from "@/data/Menu/type";
 
 /**
  * Request/response contracts for /api/rbac — the canteen backend's access
@@ -168,3 +169,78 @@ export interface ResetRbacPermissionsResponse {
     /** The defaults, with every override cleared. */
     live: RoleActionMatrix;
 }
+
+/* ------------------------------------------------------------------ *
+ * GET / PUT /api/settings — the canteen's own settings singleton
+ * ------------------------------------------------------------------ */
+
+/**
+ * Request/response contracts for /api/settings.
+ *
+ *   GET /api/settings -> GetCanteenSettingsResponse
+ *   PUT /api/settings <- UpsertCanteenSettingsBody
+ *                     -> UpsertCanteenSettingsResponse
+ *
+ * Settings is a SINGLETON, like onboarding: there is no id in the URL and no
+ * list. GET answers 404 until the first save; PUT is a full replace that
+ * creates the record when it does not exist yet (201 create / 200 replace).
+ *
+ * These three fields used to live on the onboarding document. They moved here
+ * because they are managed by a different screen and change independently of
+ * the hospital identity/licensing data.
+ */
+
+/** A MEAL_TYPE value: Breakfast / Lunch / Snack / Dinner / General. */
+export type MealType = MealSlot;
+
+/**
+ * An OPERATING_DAYS value: "All days" or a weekday. The list is the source of
+ * the day picker on the settings screen.
+ */
+export const OPERATING_DAYS = [
+    "All days",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+] as const;
+
+export type OperatingDay = (typeof OPERATING_DAYS)[number];
+
+/** One meal service window. */
+export interface ServiceTiming {
+    /** A MEAL_TYPE value: Breakfast / Lunch / Snack / Dinner / General. */
+    meal_type: MealType;
+    /**
+     * Non-blank label for when that meal starts, e.g. "07:00". Deliberately free
+     * text: the client owns the display format and the API stores it verbatim.
+     */
+    start_time: string;
+}
+
+/**
+ * Full settings document. PUT replaces every field, so all three are required.
+ */
+export interface UpsertCanteenSettingsBody {
+    /** At least one meal window. */
+    service_timings: ServiceTiming[];
+    /** At least one OPERATING_DAYS value ("All days" or a weekday). */
+    operating_days: OperatingDay[];
+    /** Free-text description of how meals reach diners. Required, non-blank. */
+    delivery_method: string;
+}
+
+/**
+ * GET /api/settings response — the stored settings.
+ *
+ * The body shape is reused rather than restated, so the settings screen can
+ * re-submit what it fetched without a per-field transformation. There is no
+ * server-minted id: the contract is exactly the three managed fields.
+ */
+export type GetCanteenSettingsResponse = UpsertCanteenSettingsBody;
+
+/** PUT response — the saved settings, identical in shape to GET. */
+export type UpsertCanteenSettingsResponse = UpsertCanteenSettingsBody;

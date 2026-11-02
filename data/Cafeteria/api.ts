@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "@/data/apiBaseUrl";
 import type {
     AddTableOrderBody,
+    AddTableOrderResponse,
     CafeteriaDaySales,
     CafeteriaPagination,
     CafeteriaSummary,
@@ -12,7 +13,6 @@ import type {
     GetCafeteriaTransactionDetails,
     GetTableTransactionDetails,
     GetTableTransactionDetailsQuery,
-    PlaceTableOrderResponse,
     UpdateTableOrderResponse,
 } from "./type";
 
@@ -103,11 +103,11 @@ export async function getCafeteriaDaysApi(
  *
  * A form must be able to show WHY the backend said no — it names the reason
  * (unknown table_id, empty order) — so failures carry a displayable message
- * instead of collapsing to the null the read endpoints return. Success keeps
- * the whole envelope, whose `message` doubles as the confirmation text.
+ * instead of collapsing to the null the read endpoints return. Success carries
+ * the created transaction row.
  */
 export type PlaceTableOrderResult =
-    | { ok: true; response: PlaceTableOrderResponse }
+    | { ok: true; response: AddTableOrderResponse }
     | { ok: false; error: string };
 
 /**
@@ -128,6 +128,22 @@ function readErrorMessage(text: string, status: number): string {
     }
 
     return `Request failed with status ${status}.`;
+}
+
+/**
+ * Pulls the transaction row out of a success body. The endpoint may answer with
+ * the row directly or wrap it in the usual { statusCode, message, data } envelope,
+ * so both shapes are accepted.
+ */
+function readTransactionRow(text: string): AddTableOrderResponse {
+    const parsed = JSON.parse(text) as
+        | AddTableOrderResponse
+        | { data?: AddTableOrderResponse };
+
+    return (
+        (parsed as { data?: AddTableOrderResponse }).data ??
+        (parsed as AddTableOrderResponse)
+    );
 }
 
 /**
@@ -163,7 +179,7 @@ export async function placeTableOrderApi(
 
         return {
             ok: true,
-            response: JSON.parse(text) as PlaceTableOrderResponse,
+            response: readTransactionRow(text),
         };
     } catch (error) {
         console.log(error);
@@ -236,7 +252,7 @@ export async function updateTableTransactionApi(
 
         return {
             ok: true,
-            response: JSON.parse(text) as UpdateTableOrderResponse,
+            response: readTransactionRow(text),
         };
     } catch (error) {
         console.log(error);

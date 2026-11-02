@@ -2,10 +2,13 @@ import { API_BASE_URL } from "@/data/apiBaseUrl";
 import { withoutErrorToasts } from "@/utils/apiErrorToasts";
 import type {
     ApiResponse,
+    GetCanteenSettingsResponse,
     GetRbacPermissionsResponse,
     RbacPermissionsPatch,
     ResetRbacPermissionsResponse,
     UpdateRbacPermissionsResponse,
+    UpsertCanteenSettingsBody,
+    UpsertCanteenSettingsResponse,
 } from "@/data/Settings/type";
 
 /**
@@ -26,6 +29,9 @@ import type {
  */
 
 const BASE_URL = `${API_BASE_URL}/rbac`;
+
+/** The canteen settings singleton lives outside the rbac tree. */
+const CANTEEN_SETTINGS_URL = `${API_BASE_URL}/settings`;
 
 /**
  * Outcome of a settings call.
@@ -70,11 +76,12 @@ function readErrorMessage(text: string, status: number): string {
  * say it could not read the answer than draw a matrix from a shape it guessed.
  */
 async function request<T>(
-    path: string,
-    init?: RequestInit
+    url: string,
+    init?: RequestInit,
+    service = "access-control API"
 ): Promise<SettingsResult<T>> {
     try {
-        const response = await fetch(`${BASE_URL}${path}`, init);
+        const response = await fetch(url, init);
         const text = await response.text();
 
         if (!response.ok) {
@@ -93,7 +100,7 @@ async function request<T>(
             return {
                 ok: false,
                 status: response.status,
-                error: "The access-control API returned a response we could not read.",
+                error: `The ${service} returned a response we could not read.`,
             };
         }
 
@@ -101,7 +108,7 @@ async function request<T>(
             return {
                 ok: false,
                 status: response.status,
-                error: "The access-control API answered without the usual envelope.",
+                error: `The ${service} answered without the usual envelope.`,
             };
         }
 
@@ -109,7 +116,7 @@ async function request<T>(
     } catch {
         return {
             ok: false,
-            error: "Cannot reach the access-control API. Check that the backend is running and try again.",
+            error: `Cannot reach the ${service}. Check that the backend is running and try again.`,
         };
     }
 }
@@ -130,7 +137,7 @@ export function getRbacPermissionsApi(): Promise<
     SettingsResult<GetRbacPermissionsResponse>
 > {
     return withoutErrorToasts(() =>
-        request<GetRbacPermissionsResponse>("/permissions")
+        request<GetRbacPermissionsResponse>(`${BASE_URL}/permissions`)
     );
 }
 
@@ -143,7 +150,7 @@ export function getRbacPermissionsApi(): Promise<
 export function updateRbacPermissionsApi(
     patch: RbacPermissionsPatch
 ): Promise<SettingsResult<UpdateRbacPermissionsResponse>> {
-    return request<UpdateRbacPermissionsResponse>("/permissions", {
+    return request<UpdateRbacPermissionsResponse>(`${BASE_URL}/permissions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -154,7 +161,47 @@ export function updateRbacPermissionsApi(
 export function resetRbacPermissionsApi(): Promise<
     SettingsResult<ResetRbacPermissionsResponse>
 > {
-    return request<ResetRbacPermissionsResponse>("/permissions/reset", {
-        method: "POST",
-    });
+    return request<ResetRbacPermissionsResponse>(
+        `${BASE_URL}/permissions/reset`,
+        {
+            method: "POST",
+        }
+    );
+}
+
+/**
+ * GET /settings — the canteen settings singleton.
+ *
+ * A 404 means nothing has been saved yet (not a broken route), so the read is
+ * quiet: the screen opens an empty form rather than firing the global error
+ * toast on every visit before the first save.
+ */
+export function getCanteenSettingsApi(): Promise<
+    SettingsResult<GetCanteenSettingsResponse>
+> {
+    return withoutErrorToasts(() =>
+        request<GetCanteenSettingsResponse>(
+            CANTEEN_SETTINGS_URL,
+            undefined,
+            "settings API"
+        )
+    );
+}
+
+/**
+ * PUT /settings — full replace of the settings singleton, creating the record
+ * when it does not exist yet (201 create / 200 replace).
+ */
+export function upsertCanteenSettingsApi(
+    body: UpsertCanteenSettingsBody
+): Promise<SettingsResult<UpsertCanteenSettingsResponse>> {
+    return request<UpsertCanteenSettingsResponse>(
+        CANTEEN_SETTINGS_URL,
+        {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        },
+        "settings API"
+    );
 }

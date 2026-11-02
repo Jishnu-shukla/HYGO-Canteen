@@ -132,20 +132,46 @@ export interface AddTableOrderBody {
 }
 
 /**
- * Success envelope of POST /api/cafeteria/table — the usual
- * { statusCode, message, data, success } body.
+ * Success response of POST /api/cafeteria/table — the created transaction row.
  *
- * `data` is the created Cafeteria transaction — server-minted transaction_id,
- * computed subtotal_amount/total_amount, payment_status "Pending" — plus the
- * echoed customer_name so a row can render without a join. Treated as opaque
- * here: the form only needs the success flag and the message, and re-reading
- * fields the server just computed would only risk disagreeing with them.
+ * Also the PUT response shape (see UpdateTableOrderResponse); the two endpoints
+ * carry identical fields because settling draws stock as a side effect and
+ * reports no stock counts.
  */
-export interface PlaceTableOrderResponse {
-    statusCode: number;
-    message: string;
-    success: boolean;
-    data: Record<string, unknown>;
+export interface AddTableOrderResponse {
+    transaction_id: string;
+    /** Validated, persisted, and echoed back verbatim. */
+    table_id: string;
+    /** "Visitor" — the no-auth-context default. */
+    customer_type: CafeteriaCustomerType;
+    /**
+     * The tab's COMPLETE running list, in order: the lines it already held
+     * first, then the ones this request added. A create echoes exactly the
+     * request's lines. Every item_id is the MSTI-… business id, resolved
+     * back from the stored ObjectId refs even for lines added earlier.
+     */
+    items_purchased: CafeteriaItemPurchased[];
+    /**
+     * Σ(quantity × price_at_sale) over ALL lines in items_purchased — the
+     * whole tab after an append, not just this request's lines.
+     */
+    subtotal_amount: number;
+    /** 0 on a create — no discount flow in this basic version. */
+    discount_applied: number;
+    /** Discount percentage stored with the transaction; 0 when none. */
+    discount_applied_per?: number;
+    /** subtotal − discount. */
+    total_amount: number;
+    /** SGST percentage stored with the transaction; 0 when none. */
+    sgst_per?: number;
+    /** CGST percentage stored with the transaction; 0 when none. */
+    cgst_per?: number;
+    /** Final payable amount after SGST and CGST. */
+    grandtotal_amount?: number;
+    /** "Cash" — the default. */
+    payment_mode: CafeteriaPaymentMode;
+    /** "Pending" — settled later at the counter. */
+    payment_status: CafeteriaPaymentStatus;
 }
 
 /* ------------------------------------------------------------------ *
@@ -291,7 +317,15 @@ export interface CreateCafeteriaTransactionBody {
     table_id: string;
     subtotal_amount: number;
     discount_applied: number;
+    /** Discount percentage; optional until the settle endpoint validates it. */
+    discount_applied_per?: number;
     total_amount: number;
+    /** SGST percentage; optional until the settle endpoint validates it. */
+    sgst_per?: number;
+    /** CGST percentage; optional until the settle endpoint validates it. */
+    cgst_per?: number;
+    /** Final payable amount after SGST and CGST. */
+    grandtotal_amount?: number;
     payment_mode: CafeteriaPaymentMode;
     payment_status: CafeteriaPaymentStatus;
 }
@@ -305,7 +339,7 @@ export interface CreateCafeteriaTransactionBody {
  * is a side effect, so a settle carries exactly the same fields as a posted
  * order (no stock counts) and the two contracts cannot drift apart.
  */
-export type UpdateTableOrderResponse = PlaceTableOrderResponse;
+export type UpdateTableOrderResponse = AddTableOrderResponse;
 
 /* ------------------------------------------------------------------ *
  * GET /api/cafeteria/days

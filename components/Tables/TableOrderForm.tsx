@@ -229,9 +229,9 @@ export function TableOrderForm({ tableId }: { tableId: string }) {
         if (result.ok) {
             setBanner({
                 kind: "success",
-                text:
-                    result.response.message ||
-                    "Order placed — settled later at the counter.",
+                text: `Order placed — ${result.response.transaction_id} filed as ${result.response.payment_status}, ₹${Number(
+                    result.response.total_amount ?? 0
+                ).toLocaleString("en-IN")} to settle at the counter.`,
             });
             setCustomerName("");
             setLines([emptyLine(nextKey())]);

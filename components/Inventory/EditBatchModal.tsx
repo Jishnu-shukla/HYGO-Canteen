@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { uploadInventoryBatchBillApi } from "@/data/Inventory/api";
 import {
-    InventoryBatch,
+    InventoryBatchRecord,
     UpdateInventoryBatchFields,
 } from "@/data/Inventory/type";
 
@@ -13,10 +14,14 @@ export interface EditBatchFormData {
     initial_quantity: string;
     current_quantity: string;
     unit_cost: string;
+    gst: string;
+    grand_total: string;
+    bill_image: string;
+    remove_bill: boolean;
 }
 
 interface EditBatchModalProps {
-    batch: InventoryBatch;
+    batch: InventoryBatchRecord;
     itemName?: string;
     unitOfMeasure?: string;
     onClose: () => void;
@@ -29,6 +34,9 @@ const toDateInput = (value?: string | null) => {
 
     return value.slice(0, 10);
 };
+
+/** `<input type="date">` value -> UTC midnight Date for the API payload. */
+const toDateValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
 export default function EditBatchModal({
     batch,
@@ -44,12 +52,20 @@ export default function EditBatchModal({
         initial_quantity: String(batch.initial_quantity ?? ""),
         current_quantity: String(batch.current_quantity ?? ""),
         unit_cost: String(batch.unit_cost ?? ""),
+        gst: String(batch.gst ?? 0),
+        grand_total: String(batch.grand_total ?? 0),
+        bill_image: batch.bill_image ?? "",
+        remove_bill: false,
     }));
 
     const [error, setError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
-    const updateField = (field: keyof EditBatchFormData, value: string) => {
+    const updateField = <K extends keyof EditBatchFormData>(
+        field: K,
+        value: EditBatchFormData[K]
+    ) => {
         setFormData((previous) => ({
             ...previous,
             [field]: value,
@@ -57,6 +73,26 @@ export default function EditBatchModal({
 
         if (error) {
             setError("");
+        }
+    };
+
+    const handleBillUpload = async (file: File | undefined) => {
+        if (!file) return;
+
+        setIsUploading(true);
+
+        try {
+            const uploaded = await uploadInventoryBatchBillApi(file);
+            updateField("bill_image", uploaded.url);
+            updateField("remove_bill", false);
+        } catch (uploadError) {
+            setError(
+                uploadError instanceof Error
+                    ? uploadError.message
+                    : "Failed to upload the bill."
+            );
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -69,7 +105,9 @@ export default function EditBatchModal({
             !formData.expiry_date ||
             !formData.initial_quantity ||
             !formData.current_quantity ||
-            !formData.unit_cost
+            !formData.unit_cost ||
+            !formData.gst ||
+            !formData.grand_total
         ) {
             setError("Please fill in all required fields.");
             return;
@@ -83,9 +121,16 @@ export default function EditBatchModal({
         if (
             Number(formData.initial_quantity) < 0 ||
             Number(formData.current_quantity) < 0 ||
-            Number(formData.unit_cost) < 0
+            Number(formData.unit_cost) < 0 ||
+            Number(formData.gst) < 0 ||
+            Number(formData.grand_total) < 0
         ) {
-            setError("Quantity and unit cost cannot be negative.");
+            setError("Quantities, costs, GST, and total cannot be negative.");
+            return;
+        }
+
+        if (Number(formData.gst) > 100) {
+            setError("GST percentage cannot be greater than 100.");
             return;
         }
 
@@ -102,14 +147,24 @@ export default function EditBatchModal({
         setIsSubmitting(true);
 
         try {
+            const billImage = formData.bill_image.trim();
+
             await onSubmit({
                 batch_id: batch.batch_id,
                 batch_number: formData.batch_number.trim(),
-                received_date: formData.received_date,
-                expiry_date: formData.expiry_date,
+                received_date: toDateValue(formData.received_date),
+                expiry_date: toDateValue(formData.expiry_date),
                 initial_quantity: Number(formData.initial_quantity),
                 current_quantity: Number(formData.current_quantity),
                 unit_cost: Number(formData.unit_cost),
+                gst: Number(formData.gst),
+                grand_total: Number(formData.grand_total),
+                // null clears the stored bill; omitting it keeps the current one.
+                ...(formData.remove_bill
+                    ? { bill_image: null }
+                    : billImage && billImage !== (batch.bill_image ?? "")
+                      ? { bill_image: billImage }
+                      : {}),
             });
         } catch (submitError) {
             setError(
@@ -337,6 +392,135 @@ export default function EditBatchModal({
                                     className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-7 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
                                 />
                             </div>
+                        </div>
+
+                        {/* GST + grand total */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label
+                                    htmlFor="edit-batch-gst"
+                                    className="mb-1.5 block text-xs font-semibold text-slate-700"
+                                >
+                                    GST (%)
+                                </label>
+
+                                <div className="relative">
+                                    <input
+                                        id="edit-batch-gst"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        value={formData.gst}
+                                        onChange={(event) =>
+                                            updateField(
+                                                "gst",
+                                                event.target.value
+                                            )
+                                        }
+                                        placeholder="e.g. 5"
+                                        className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                                    />
+
+                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+                                        %
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="edit-batch-grand-total"
+                                    className="mb-1.5 block text-xs font-semibold text-slate-700"
+                                >
+                                    Grand Total
+                                </label>
+
+                                <div className="relative">
+                                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+                                        ₹
+                                    </span>
+
+                                    <input
+                                        id="edit-batch-grand-total"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={formData.grand_total}
+                                        onChange={(event) =>
+                                            updateField(
+                                                "grand_total",
+                                                event.target.value
+                                            )
+                                        }
+                                        placeholder="e.g. 10260.00"
+                                        className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-7 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                                    />
+                                </div>
+
+                                <p className="mt-1 text-[9px] text-slate-400">
+                                    Total amount for the batch after GST.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Bill image */}
+                        <div>
+                            <span className="mb-1.5 block text-xs font-semibold text-slate-700">
+                                Bill
+                            </span>
+
+                            {formData.bill_image && !formData.remove_bill ? (
+                                <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs">
+                                    <a
+                                        href={formData.bill_image}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="truncate font-medium text-amber-700 underline-offset-2 hover:underline"
+                                    >
+                                        View uploaded bill
+                                    </a>
+
+                                    <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[10px] font-medium text-slate-600">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.remove_bill}
+                                            onChange={(event) =>
+                                                updateField(
+                                                    "remove_bill",
+                                                    event.target.checked
+                                                )
+                                            }
+                                            className="accent-amber-600"
+                                        />
+                                        Remove
+                                    </label>
+                                </div>
+                            ) : (
+                                <label className="flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2.5 text-xs font-semibold text-slate-500 transition hover:border-amber-400 hover:text-amber-700">
+                                    {isUploading
+                                        ? "Uploading…"
+                                        : "Upload bill image"}
+                                    <input
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        className="hidden"
+                                        disabled={isUploading}
+                                        onChange={(event) => {
+                                            handleBillUpload(
+                                                event.target.files?.[0]
+                                            );
+                                            event.target.value = "";
+                                        }}
+                                    />
+                                </label>
+                            )}
+
+                            <p className="mt-1 text-[9px] text-slate-400">
+                                Upload a PDF, PNG, or JPG to replace the stored
+                                bill; leaving it untouched keeps the current
+                                file.
+                            </p>
                         </div>
 
                         {error && (

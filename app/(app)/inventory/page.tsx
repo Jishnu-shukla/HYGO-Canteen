@@ -13,8 +13,14 @@ import ShoppingListModal from "@/components/Inventory/ShoppingListModal";
 import { useFoodItemContext } from "@/context/FoodItemContext";
 import { EMPTY_INVENTORY_PAGINATION, INVENTORY_PAGE_SIZE, createInventoryBatchApi, createInventoryItemApi, deleteInventoryBatchApi, deleteInventoryItemApi, getInventoryItemsApi, getInventorySummaryApi, updateInventoryItemApi, updateInventoryPreorderApi } from "@/data/Inventory/api";
 import { categories } from "@/data/Inventory/dummyData";
-import { IinventorySummary, InventoryBatch, InventoryItem, InventoryPagination, InventoryTableItem, UpdateInventoryBatchFields, UpdateInventoryFields } from "@/data/Inventory/type";
+import { IinventorySummary, InventoryBatchRecord, InventoryItem, InventoryPagination, InventoryTableItem, UpdateInventoryBatchFields, UpdateInventoryFields } from "@/data/Inventory/type";
+import { showErrorToast } from "@/utils/toast";
 import { useCallback, useEffect, useState } from "react";
+
+type SelectedInventoryItem = Pick<
+    InventoryItem,
+    "item_id" | "item_name" | "unit_of_measure" | "default_gst"
+>;
 
 export default function Inventory() {
 
@@ -25,17 +31,17 @@ export default function Inventory() {
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
     const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
     const [isSelectItemModalOpen, setIsSelectItemModalOpen] = useState(false);
-    const [selectedItem, setSelectedItem] = useState<
-        Pick<InventoryItem, "item_id" | "item_name" | "unit_of_measure"> | null
-    >(null);
+    const [selectedItem, setSelectedItem] = useState<SelectedInventoryItem | null>(
+        null
+    );
     const [inventorySummary, setInventorySummary] = useState<IinventorySummary | null>(null);
     const [editingItem, setEditingItem] = useState<InventoryTableItem | null>(null);
     const [editingBatch, setEditingBatch] = useState<
-        { item: InventoryTableItem; batch: InventoryBatch } | null
+        { item: InventoryTableItem; batch: InventoryBatchRecord } | null
     >(null);
     const [deletingItem, setDeletingItem] = useState<InventoryTableItem | null>(null);
     const [deletingBatch, setDeletingBatch] = useState<
-        { item: InventoryTableItem; batch: InventoryBatch } | null
+        { item: InventoryTableItem; batch: InventoryBatchRecord } | null
     >(null);
     // Pre-order toggle: which row's button is mid-flight, and the last failure
     // to show above the table.
@@ -122,9 +128,7 @@ export default function Inventory() {
     }
 
     // Step 2: the item is chosen, hand it to the batch form.
-    function handleSelectItem(
-        item: Pick<InventoryItem, "item_id" | "item_name" | "unit_of_measure">
-    ) {
+    function handleSelectItem(item: SelectedInventoryItem) {
         setSelectedItem(item);
         setIsSelectItemModalOpen(false);
         setIsAddBatchModalOpen(true);
@@ -134,14 +138,35 @@ export default function Inventory() {
     // its server-assigned item_id) straight to the batch form. Errors bubble
     // up so the modal can show them and stay open.
     async function handleAddItem(data: AddItemFormData) {
+        if (!data.category) {
+            throw new Error("Select a category for the item.");
+        }
+
         const createdItem = await createInventoryItemApi({
             item_name: data.item_name,
             category: data.category,
             unit_of_measure: data.unit_of_measure,
-            stock_type: data.stock_type,
+            tax_type: data.tax_type,
+            default_gst: Number(data.default_gst),
             threshold_quantity: Number(data.threshold_quantity),
             storage_location: data.storage_location,
         });
+
+        // POST does not accept the stock flags: they are created false and are
+        // toggled through the shared PUT. Post-usage wins when set, so only
+        // that choice needs the follow-up write.
+        if (data.stock_type === "stock_post_usage" && createdItem?.item_id) {
+            try {
+                await updateInventoryItemApi(createdItem.item_id, {
+                    inventory: { stock_post_usage: true },
+                });
+            } catch (error) {
+                console.log(error);
+                showErrorToast(
+                    "Item created, but stock tracking could not be set. Change it from Edit Item."
+                );
+            }
+        }
 
         setIsAddItemModalOpen(false);
         refreshInventory();
@@ -151,6 +176,8 @@ export default function Inventory() {
             item_name: createdItem?.item_name ?? data.item_name,
             unit_of_measure:
                 createdItem?.unit_of_measure ?? data.unit_of_measure,
+            default_gst:
+                createdItem?.default_gst ?? Number(data.default_gst),
         });
         setIsAddBatchModalOpen(true);
     }
@@ -162,13 +189,44 @@ export default function Inventory() {
             throw new Error("No inventory item selected for this batch.");
         }
 
+        const initialQuantity = Number(data.initial_quantity);
+        const unitCost =
+            data.unit_cost.trim() === "" ? undefined : Number(data.unit_cost);
+        const gst = data.gst.trim() === "" ? undefined : Number(data.gst);
+        const grandTotal =
+            unitCost !== undefined && Number.isFinite(unitCost)
+                ? Math.round(
+                      initialQuantity *
+                          unitCost *
+                          (1 + (gst ?? 0) / 100) *
+                          100
+                  ) / 100
+                : undefined;
+
         await createInventoryBatchApi(selectedItem.item_id, {
-            batch_number: data.batch_number,
-            received_date: data.received_date,
-            expiry_date: data.expiry_date,
-            initial_quantity: Number(data.initial_quantity),
-            current_quantity: Number(data.current_quantity),
-            unit_cost: Number(data.unit_cost),
+            batch_number: data.batch_number.trim(),
+            initial_quantity: initialQuantity,
+            ...(data.current_quantity.trim() !== ""
+                ? { current_quantity: Number(data.current_quantity) }
+                : {}),
+            ...(data.received_date !== ""
+                ? {
+                      received_date: new Date(
+                          `${data.received_date}T00:00:00.000Z`
+                      ),
+                  }
+                : {}),
+            ...(data.expiry_date !== ""
+                ? {
+                      expiry_date: new Date(
+                          `${data.expiry_date}T00:00:00.000Z`
+                      ),
+                  }
+                : {}),
+            ...(unitCost !== undefined ? { unit_cost: unitCost } : {}),
+            ...(gst !== undefined ? { gst } : {}),
+            ...(grandTotal !== undefined ? { grand_total: grandTotal } : {}),
+            bill_image: data.bill_image.trim() || null,
         });
 
         setIsAddBatchModalOpen(false);
@@ -398,6 +456,7 @@ export default function Inventory() {
                 onSubmit={handleAddBatch}
                 itemName={selectedItem?.item_name}
                 unitOfMeasure={selectedItem?.unit_of_measure}
+                defaultGst={selectedItem?.default_gst}
             />
 
             {/* Mounted fresh each time a target is picked, so the form state is

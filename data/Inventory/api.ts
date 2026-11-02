@@ -1,15 +1,20 @@
 import { API_BASE_URL } from "@/data/apiBaseUrl";
 import {
+    CreateInventoryBatchBody,
+    CreateInventoryItemBody,
     DeleteInventoryQuery,
+    DeleteInventoryResponse,
     GetInventoryQuery,
     GetInventoryResponse,
+    InventoryBatchRecord,
     InventoryItem,
     InventoryPagination,
+    InventoryRecord,
     UpdateInventoryBody,
+    UpdateInventoryItemResponse,
     UpdateInventoryPreorderBody,
     UpdateInventoryPreorderResponse,
-    addBatchItem,
-    addInventoryItem,
+    UploadInventoryBatchBillResponse,
 } from "@/data/Inventory/type";
 
 /** Page size used by the inventory table's pager. */
@@ -100,7 +105,9 @@ export async function getInventorySummaryApi() {
     }
 } 
 
-export async function createInventoryItemApi(inventoryItem: addInventoryItem) {
+export async function createInventoryItemApi(
+    inventoryItem: CreateInventoryItemBody
+): Promise<InventoryRecord> {
     try {
         const data = await fetch(`${API_BASE_URL}/inventory`, {
             method: "POST",
@@ -116,13 +123,16 @@ export async function createInventoryItemApi(inventoryItem: addInventoryItem) {
             throw new Error(jsonData?.message || "Failed to create inventory item.");
         }
 
-        return jsonData.data;
+        return jsonData.data as InventoryRecord;
     } catch (error) {
         console.log(error);
         throw error;
     }
 }
-export async function createInventoryBatchApi(item_id: string, batchItem: addBatchItem) {
+export async function createInventoryBatchApi(
+    item_id: string,
+    batchItem: CreateInventoryBatchBody
+) {
     try {
         const data = await fetch(`${API_BASE_URL}/inventory/${item_id}/batch`, {
             method: "POST",
@@ -138,14 +148,49 @@ export async function createInventoryBatchApi(item_id: string, batchItem: addBat
             throw new Error(jsonData?.message || "Failed to create inventory batch.");
         }
 
-        return jsonData.data;
+        return jsonData.data as InventoryBatchRecord;
     } catch (error) {
         console.log(error);
         throw error;
     }
 } 
 
-export async function updateInventoryItemApi(item_id: string, body: UpdateInventoryBody) {
+/**
+ * POST /api/inventory/bill — uploads a bill image (multipart/form-data, file
+ * field `bill_image`) and returns its Cloudinary URL. The URL is not persisted
+ * here: the caller saves it as `bill_image` on the next batch create/update.
+ */
+export async function uploadInventoryBatchBillApi(
+    file: File
+): Promise<UploadInventoryBatchBillResponse> {
+    try {
+        const formData = new FormData();
+        formData.append("bill_image", file);
+
+        const data = await fetch(`${API_BASE_URL}/inventory/bill`, {
+            method: "POST",
+            body: formData
+        });
+        const jsonData = await data.json();
+        console.log(jsonData);
+
+        const payload = jsonData?.data ?? jsonData;
+
+        if (!data.ok || typeof payload?.url !== "string") {
+            throw new Error(jsonData?.message || "Failed to upload the bill.");
+        }
+
+        return payload as UploadInventoryBatchBillResponse;
+    } catch (error) {
+        console.log(error);
+        throw error;
+    }
+}
+
+export async function updateInventoryItemApi(
+    item_id: string,
+    body: UpdateInventoryBody
+): Promise<UpdateInventoryItemResponse> {
     try {
         const data = await fetch(`${API_BASE_URL}/inventory/${item_id}`, {
             method: "PUT",
@@ -161,7 +206,7 @@ export async function updateInventoryItemApi(item_id: string, body: UpdateInvent
             throw new Error(jsonData?.message || "Failed to update inventory item.");
         }
 
-        return jsonData.data;
+        return jsonData.data as UpdateInventoryItemResponse;
     } catch (error) {
         console.log(error);
         throw error;
@@ -202,9 +247,15 @@ export async function updateInventoryPreorderApi(
     }
 } 
 
-// Shared DELETE for the inventory item and its batches. `type` selects what is
-// removed; `batch_id` is required when type=batch.
-async function deleteInventoryApi(item_id: string, query: DeleteInventoryQuery) {
+/**
+ * Shared DELETE for the inventory item and its batches. `type` selects what is
+ * removed; `batch_id` is required when type=batch. The response says what was
+ * removed under `item` or `batch`.
+ */
+async function deleteInventoryApi(
+    item_id: string,
+    query: DeleteInventoryQuery
+): Promise<DeleteInventoryResponse> {
     try {
         const params = new URLSearchParams({ type: query.type });
 
@@ -222,7 +273,7 @@ async function deleteInventoryApi(item_id: string, query: DeleteInventoryQuery) 
             throw new Error(jsonData?.message || "Failed to delete inventory record.");
         }
 
-        return jsonData.data;
+        return jsonData.data as DeleteInventoryResponse;
     } catch (error) {
         console.log(error);
         throw error;

@@ -1,6 +1,6 @@
 "use client";
 
-import { InventoryBatch, InventoryPagination, InventoryTableItem } from "@/data/Inventory/type";
+import { InventoryBatchRecord, InventoryPagination, InventoryTableItem } from "@/data/Inventory/type";
 import { ChevronsRight } from "lucide-react";
 import { useState } from "react";
 
@@ -15,8 +15,8 @@ export interface InventoryTableProps {
     onEdit?: (item: InventoryTableItem) => void;
     onDelete?: (item: InventoryTableItem) => void;
     onPOTrigger?: (item: InventoryTableItem) => void;
-    onEditBatch?: (item: InventoryTableItem, batch: InventoryBatch) => void;
-    onDeleteBatch?: (item: InventoryTableItem, batch: InventoryBatch) => void;
+    onEditBatch?: (item: InventoryTableItem, batch: InventoryBatchRecord) => void;
+    onDeleteBatch?: (item: InventoryTableItem, batch: InventoryBatchRecord) => void;
     /** item_id whose pre-order toggle is in flight, so only that button disables. */
     poBusyId?: string | null;
 }
@@ -354,7 +354,7 @@ export default function InventoryTable({
                                                     </div>
                                                 ) : (
                                                     <div className="overflow-x-auto">
-                                                        <table className="w-full min-w-[760px] text-left">
+                                                        <table className="w-full min-w-[1000px] text-left">
                                                             <thead>
                                                                 <tr className="border-b border-blue-100 bg-white">
                                                                     <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500">Batch</th>
@@ -363,6 +363,9 @@ export default function InventoryTable({
                                                                     <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500">Initial Qty</th>
                                                                     <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500">Current Qty</th>
                                                                     <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500">Unit Cost</th>
+                                                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500">GST</th>
+                                                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500">Grand Total</th>
+                                                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500">Bill</th>
                                                                     <th className="px-3 py-2 text-center text-[9px] font-bold uppercase tracking-wide text-slate-500">Actions</th>
                                                                 </tr>
                                                             </thead>
@@ -402,6 +405,33 @@ export default function InventoryTable({
                                                                                 minimumFractionDigits: 2,
                                                                                 maximumFractionDigits: 2,
                                                                             })}
+                                                                        </td>
+                                                                        <td className="px-3 py-2 text-xs text-slate-600">
+                                                                            {Number(batch.gst ?? 0).toLocaleString("en-IN", {
+                                                                                maximumFractionDigits: 2,
+                                                                            })}
+                                                                            %
+                                                                        </td>
+                                                                        <td className="px-3 py-2 text-xs font-medium text-slate-700">
+                                                                            ₹{Number(batch.grand_total ?? 0).toLocaleString("en-IN", {
+                                                                                minimumFractionDigits: 2,
+                                                                                maximumFractionDigits: 2,
+                                                                            })}
+                                                                        </td>
+                                                                        <td className="px-3 py-2 text-xs">
+                                                                            {batch.bill_image ? (
+                                                                                <a
+                                                                                    href={batch.bill_image}
+                                                                                    target="_blank"
+                                                                                    rel="noreferrer"
+                                                                                    onClick={(event) => event.stopPropagation()}
+                                                                                    className="font-semibold text-blue-700 underline-offset-2 hover:underline"
+                                                                                >
+                                                                                    View
+                                                                                </a>
+                                                                            ) : (
+                                                                                <span className="text-slate-400">—</span>
+                                                                            )}
                                                                         </td>
                                                                         <td className="px-3 py-2">
                                                                             <div

@@ -1,6 +1,6 @@
 "use client";
 
-import { InventoryBatch, InventoryTableItem } from "@/data/Inventory/type";
+import { InventoryBatchRecord, InventoryTableItem } from "@/data/Inventory/type";
 import { ShoppingCart, X } from "lucide-react";
 
 export interface ShoppingListModalProps {
@@ -94,7 +94,7 @@ export default function ShoppingListModal({
                         <div className="space-y-4">
                             {shoppingListItems.map((item) => {
                                 const totalQty = getTotalQuantity(item);
-                                const batches: InventoryBatch[] =
+                                const batches: InventoryBatchRecord[] =
                                     item.batches ?? [];
                                 const isBusy = poBusyId === item.item_id;
 
@@ -195,7 +195,7 @@ export default function ShoppingListModal({
                                         </div>
 
                                         <div className="overflow-x-auto">
-                                            <table className="w-full min-w-[720px] border-collapse text-left">
+                                            <table className="w-full min-w-[1000px] border-collapse text-left">
                                                 <thead>
                                                     <tr className="bg-slate-50">
                                                         <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
@@ -216,13 +216,22 @@ export default function ShoppingListModal({
                                                         <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                                             Unit Cost
                                                         </th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                                                            GST
+                                                        </th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                                                            Grand Total
+                                                        </th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                                                            Bill
+                                                        </th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {batches.length === 0 ? (
                                                         <tr>
                                                             <td
-                                                                colSpan={6}
+                                                                colSpan={9}
                                                                 className="px-4 py-3 text-center text-xs text-slate-400"
                                                             >
                                                                 No batch details
@@ -276,6 +285,48 @@ export default function ShoppingListModal({
                                                                             0
                                                                     ).toLocaleString(
                                                                         "en-IN"
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-sm text-slate-600">
+                                                                    {Number(
+                                                                        batch.gst ?? 0
+                                                                    ).toLocaleString(
+                                                                        "en-IN",
+                                                                        {
+                                                                            maximumFractionDigits: 2,
+                                                                        }
+                                                                    )}
+                                                                    %
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-sm font-semibold text-slate-800">
+                                                                    ₹
+                                                                    {Number(
+                                                                        batch.grand_total ??
+                                                                            0
+                                                                    ).toLocaleString(
+                                                                        "en-IN",
+                                                                        {
+                                                                            minimumFractionDigits: 2,
+                                                                            maximumFractionDigits: 2,
+                                                                        }
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-sm">
+                                                                    {batch.bill_image ? (
+                                                                        <a
+                                                                            href={
+                                                                                batch.bill_image
+                                                                            }
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className="font-semibold text-blue-700 underline-offset-2 hover:underline"
+                                                                        >
+                                                                            View
+                                                                        </a>
+                                                                    ) : (
+                                                                        <span className="text-slate-400">
+                                                                            —
+                                                                        </span>
                                                                     )}
                                                                 </td>
                                                             </tr>

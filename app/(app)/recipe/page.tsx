@@ -6,7 +6,7 @@ import RecipeFiltersWithSearch from "@/components/Recipe/RecipeFiltersWithSearch
 import RecipesSection from "@/components/Recipe/RecipesSection";
 import RecipeSummaryCard from "@/components/Recipe/RecipeSummaryCard";
 import { useFoodItemContext } from "@/context/FoodItemContext";
-import { InventoryBatch, InventoryItem } from "@/data/Inventory/type";
+import { InventoryItem } from "@/data/Inventory/type";
 import { deleteRecipeApi } from "@/data/Recipe/api";
 import type { RecipeItem } from "@/data/Recipe/type";
 import {
