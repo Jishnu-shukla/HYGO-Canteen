@@ -136,6 +136,14 @@ export interface KitchenScheduleOrderItem {
     extra_notes?: string;
     /** Special instructions from the diet order. */
     special_instruction?: string;
+    /**
+     * Flags the order for priority kitchen handling. Optional because older
+     * projections omit it; the screen then falls back to a non-blank
+     * special_instruction to recognise a special order.
+     */
+    is_special?: boolean;
+    /** Who raised the order, e.g. "Dietitian", "Nurse". */
+    order_source?: string;
 }
 
 /**

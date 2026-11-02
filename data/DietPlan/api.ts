@@ -48,6 +48,7 @@ export async function getDietPlanSummaryApi(): Promise<GetDietPlanSummaryRespons
 export async function createDietPlanApi(
     payload: CreateDietPlanBody
 ): Promise<CreateDietPlanResponse> {
+    console.log("Body:", payload)
     const response = await fetch(
         `${API_BASE_URL}/dietplan`,
         {
@@ -60,6 +61,8 @@ export async function createDietPlanApi(
     );
 
     const jsonData = await response.json();
+
+    console.log("JsonResponse:", jsonData)
 
     if (!response.ok) {
         throw new Error(

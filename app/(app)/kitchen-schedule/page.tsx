@@ -4,6 +4,7 @@ import { KitchenScheduleSummaryCards } from "@/components/KitchenSchedule/Kitche
 import { KitchenSchedulePatientMenus } from "@/components/KitchenSchedule/KitchenSchedulePatientMenus";
 import { MealSlotBreakdown } from "@/components/KitchenSchedule/MealSlotBreakdown";
 import { KitchenScheduleOrdersTable } from "@/components/KitchenSchedule/KitchenScheduleOrdersTable";
+import { KitchenScheduleSpecialOrders } from "@/components/KitchenSchedule/KitchenScheduleSpecialOrders";
 import ScheduleMealSlotsModal from "@/components/KitchenSchedule/ScheduleMealSlotsModal";
 import MenuScheduleProvider, {
     useMenuScheduleContext,
@@ -17,7 +18,7 @@ import type {
     KitchenScheduleOrdersPivot,
 } from "@/data/KitchenSchedule/type";
 import { CalendarClock, ChefHat } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function KitchenScheduleContent() {
     const { patientMenus, loading: isMenusLoading } =
@@ -38,6 +39,18 @@ function KitchenScheduleContent() {
 
     /** Controls the "Schedule Meal Slots" modal opened from the page header. */
     const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+
+    /**
+     * Bumped after any refresh of the pivot, so the special-orders section
+     * re-reads the slot drill-downs too and the two views cannot disagree.
+     */
+    const [specialReloadKey, setSpecialReloadKey] = useState(0);
+
+    /** The slots that have orders today — the rows of the pivot. */
+    const scheduledSlots = useMemo(
+        () => (orders ?? []).map((row) => row.meal_slot),
+        [orders]
+    );
 
     useEffect(() => {
         // Inlined rather than calling a helper: the set-state-in-effect rule
@@ -89,6 +102,7 @@ function KitchenScheduleContent() {
         );
 
         setOrders(ordersData);
+        setSpecialReloadKey((current) => current + 1);
     }, []);
 
     return (
@@ -131,6 +145,14 @@ function KitchenScheduleContent() {
             <KitchenScheduleSummaryCards
                 summary={summary}
                 loading={isSummaryLoading}
+            />
+
+            {/* Special orders kept apart with full instructions and details */}
+            <KitchenScheduleSpecialOrders
+                slots={scheduledSlots}
+                loading={isOrdersLoading}
+                reloadKey={specialReloadKey}
+                onOrdersChanged={refreshOrders}
             />
 
             {/* Per-slot split, a different tile design */}
